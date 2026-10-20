@@ -13,6 +13,7 @@ DbSession = Annotated[Session, Depends(get_db)]
 
 # Temporary until authentication lands (T5): the client identifies the analyst by header.
 AnalystIdHeader = Annotated[uuid.UUID | None, Header(alias="X-Analyst-Id")]
+RequiredAnalystIdHeader = Annotated[uuid.UUID, Header(alias="X-Analyst-Id")]
 
 _api_key_header = APIKeyHeader(
     name="X-API-Key",

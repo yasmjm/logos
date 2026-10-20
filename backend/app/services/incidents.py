@@ -1,10 +1,11 @@
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy import ColumnElement, Integer, Select, case, cast, func, select
+from sqlalchemy import ColumnElement, Integer, Select, case, cast, func, select, update
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import (
+    Analyst,
     Incident,
     IncidentCategory,
     IncidentEvent,
@@ -152,3 +153,38 @@ def create_incident(db: Session, data: IncidentCreate) -> uuid.UUID:
     )
     db.commit()
     return incident.id
+
+
+def analyst_exists(db: Session, analyst_id: uuid.UUID) -> bool:
+    return db.get(Analyst, analyst_id) is not None
+
+
+def soft_delete_incident(db: Session, incident_id: uuid.UUID, analyst_id: uuid.UUID) -> bool:
+    """Mark the incident as deleted and record a "deleted" event.
+
+    A single conditional UPDATE (no check-then-act): if the incident does not exist or
+    was already deleted, no row is affected and nothing is written. The version bump
+    makes any in-flight status change with the old version fail with 409.
+    """
+    previous_status = db.execute(
+        update(Incident)
+        .where(Incident.id == incident_id, _not_deleted())
+        .values(deleted_at=func.now(), version=Incident.version + 1)
+        .returning(Incident.status)
+        .execution_options(synchronize_session=False)
+    ).scalar_one_or_none()
+    if previous_status is None:
+        db.rollback()
+        return False
+
+    db.add(
+        IncidentEvent(
+            incident_id=incident_id,
+            analyst_id=analyst_id,
+            event_type=IncidentEventType.DELETED,
+            from_status=previous_status,
+            to_status=None,
+        )
+    )
+    db.commit()
+    return True
