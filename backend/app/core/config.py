@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     app_env: Literal["development", "test", "production"] = "development"
     debug: bool = False
     database_url: str = "postgresql+psycopg://logos:logos@localhost:5433/logos"
+    # Connection pool and timeouts: fail fast instead of hanging when the database is slow.
+    db_pool_size: int = 5
+    db_max_overflow: int = 5
+    db_pool_timeout_seconds: float = 5
+    db_connect_timeout_seconds: int = 3
+    db_statement_timeout_ms: int = 5000
     # Shared secret for POST /incidents. When unset, ingestion rejects every request.
     ingest_api_key: SecretStr | None = None
     # Signs analyst access tokens (HS256). Required in production.
