@@ -42,6 +42,20 @@ def _truncate(value: Any) -> Any:
     return value
 
 
+class ProblemException(Exception):
+    """Raise to answer with problem+json carrying extra members (e.g. "current")."""
+
+    def __init__(self, status: int, detail: str, **extensions: Any) -> None:
+        super().__init__(detail)
+        self.status = status
+        self.detail = detail
+        self.extensions = extensions
+
+
+async def _problem_exception_handler(_: Request, exc: ProblemException) -> JSONResponse:
+    return problem_response(exc.status, exc.detail, **jsonable_encoder(exc.extensions))
+
+
 def _describe_location(loc: tuple[int | str, ...]) -> str:
     source, *path = loc
     # Drop list indexes so multi-value filters read as "severity", not "severity.0".
@@ -91,6 +105,7 @@ async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSON
 
 
 def register_error_handlers(app: FastAPI) -> None:
+    app.add_exception_handler(ProblemException, _problem_exception_handler)
     app.add_exception_handler(StarletteHTTPException, _http_exception_handler)
     app.add_exception_handler(RequestValidationError, _validation_exception_handler)
     app.add_exception_handler(Exception, _unhandled_exception_handler)

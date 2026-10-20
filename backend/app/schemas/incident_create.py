@@ -17,7 +17,7 @@ _HIGHWAY_PATTERN = re.compile(r"^([A-Z]{2})[\s-]*(\d{3})$")
 _KM_STEP = Decimal("0.1")
 _KM_MIN = Decimal("0")
 _KM_MAX = Decimal("9999.9")
-_LOCATION_NOTE_MAX = 255
+LOCATION_NOTE_MAX = 255
 
 
 def _blank_to_none(value: object) -> object:
@@ -26,7 +26,7 @@ def _blank_to_none(value: object) -> object:
     return value
 
 
-def _normalize_highway(value: object) -> str | None:
+def normalize_highway(value: object) -> str | None:
     """Return "BR-116" for inputs like "br-116", "BR 116" or "BR116"; None if not a highway."""
     if not isinstance(value, str):
         return None
@@ -34,7 +34,7 @@ def _normalize_highway(value: object) -> str | None:
     return f"{match[1]}-{match[2]}" if match else None
 
 
-def _normalize_km(value: object) -> Decimal | None:
+def normalize_km(value: object) -> Decimal | None:
     """Round to one decimal place; None if not a number within 0 to 9999.9."""
     if isinstance(value, bool) or not isinstance(value, int | float | str | Decimal):
         return None
@@ -47,8 +47,53 @@ def _normalize_km(value: object) -> Decimal | None:
     return km if _KM_MIN <= km <= _KM_MAX else None
 
 
-def _clip(text: str, max_length: int) -> str:
+def clip(text: str, max_length: int) -> str:
     return text if len(text) <= max_length else text[: max_length - 1] + "…"
+
+
+NOTE_SEPARATOR = " | "
+
+
+def salvage_highway_and_km(data: dict[str, Any]) -> list[str]:
+    """Normalize highway/km in place; unusable values become None.
+
+    Returns the notes that preserve the original values ("Rodovia informada: ...").
+    """
+    notes: list[str] = []
+
+    highway = _blank_to_none(data.get("highway"))
+    if "highway" in data:
+        data["highway"] = None
+    if highway is not None:
+        data["highway"] = normalize_highway(highway)
+        if data["highway"] is None:
+            notes.append(f"Rodovia informada: {clip(str(highway).strip(), 80)}")
+
+    km = _blank_to_none(data.get("km"))
+    if "km" in data:
+        data["km"] = None
+    if km is not None:
+        data["km"] = normalize_km(km)
+        if data["km"] is None:
+            notes.append(f"Km informado: {clip(str(km).strip(), 40)}")
+
+    return notes
+
+
+def room_for_note(notes: list[str]) -> int:
+    """How much of the sender's note fits next to the preserved values."""
+    if not notes:
+        return LOCATION_NOTE_MAX
+    return LOCATION_NOTE_MAX - len(NOTE_SEPARATOR.join(notes)) - len(NOTE_SEPARATOR)
+
+
+def merge_location_note(note: str | None, notes: list[str]) -> str | None:
+    """Append preserved values to the note, never overwriting it; fits 255 chars."""
+    note = note.strip() if note and note.strip() else None
+    if not notes:
+        return clip(note, LOCATION_NOTE_MAX) if note else None
+    suffix = NOTE_SEPARATOR.join(notes)
+    return f"{clip(note, room_for_note(notes))}{NOTE_SEPARATOR}{suffix}" if note else suffix
 
 
 def salvage_location(data: dict[str, Any]) -> dict[str, Any]:
@@ -57,37 +102,19 @@ def salvage_location(data: dict[str, Any]) -> dict[str, Any]:
     A highway or km that cannot be used is stored as null, and the original value is
     appended to location_note (never overwriting what the sender wrote there).
     """
-    notes: list[str] = []
-
-    highway = _blank_to_none(data.get("highway"))
-    if "highway" in data:
-        data["highway"] = None
-    if highway is not None:
-        data["highway"] = _normalize_highway(highway)
-        if data["highway"] is None:
-            notes.append(f"Rodovia informada: {_clip(str(highway).strip(), 80)}")
-
-    km = _blank_to_none(data.get("km"))
-    if "km" in data:
-        data["km"] = None
-    if km is not None:
-        data["km"] = _normalize_km(km)
-        if data["km"] is None:
-            notes.append(f"Km informado: {_clip(str(km).strip(), 40)}")
-
+    notes = salvage_highway_and_km(data)
     note = _blank_to_none(data.get("location_note"))
-    if note is not None and not isinstance(note, str):
+    if note is not None:
         note = str(note)
-    if not notes:
-        if note is not None:
-            data["location_note"] = _clip(note.strip(), _LOCATION_NOTE_MAX)
-        return data
+    if note is not None or notes:
+        data["location_note"] = merge_location_note(note, notes)
+    return data
 
     # Keep the preserved originals intact; trim the sender's note if space runs out.
     suffix = " | ".join(notes)
     if note:
-        room = _LOCATION_NOTE_MAX - len(suffix) - len(" | ")
-        data["location_note"] = f"{_clip(note.strip(), room)} | {suffix}"
+        room = LOCATION_NOTE_MAX - len(suffix) - len(" | ")
+        data["location_note"] = f"{clip(note.strip(), room)} | {suffix}"
     else:
         data["location_note"] = suffix
     return data
@@ -102,7 +129,7 @@ def _optional_text(max_length: int) -> type:
 
 
 DriverName = _optional_text(120)
-LocationNote = _optional_text(_LOCATION_NOTE_MAX)
+LocationNote = _optional_text(LOCATION_NOTE_MAX)
 RawMessage = _optional_text(10_000)
 
 # Highway and km are already normalized by salvage_location; the constraints below only

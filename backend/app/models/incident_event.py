@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, func
+from sqlalchemy import DateTime, ForeignKey, Index, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -30,6 +30,8 @@ class IncidentEvent(Base):
     to_status: Mapped[IncidentStatus | None] = mapped_column(
         string_enum(IncidentStatus, "to_status")
     )
+    # Reason for the change (e.g. why inconclusive) or what an edit changed.
+    note: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     analyst: Mapped[Analyst | None] = relationship()

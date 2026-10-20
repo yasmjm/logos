@@ -2,11 +2,24 @@
 
 from typing import Any
 
-from app.schemas.problem import ProblemDetail, ValidationProblemDetail
+from app.schemas.problem import (
+    ConflictProblemDetail,
+    NotResponsibleProblemDetail,
+    ProblemDetail,
+    ValidationProblemDetail,
+)
 
 _RESPONSES: dict[int, dict[str, Any]] = {
     401: {"model": ProblemDetail, "description": "Missing or invalid credentials."},
+    403: {
+        "model": NotResponsibleProblemDetail,
+        "description": "Only the analyst responsible for the incident can do this.",
+    },
     404: {"model": ProblemDetail, "description": "Resource not found."},
+    409: {
+        "model": ConflictProblemDetail,
+        "description": "Version is outdated; `current` holds the incident as it is now.",
+    },
     422: {"model": ValidationProblemDetail, "description": "Invalid request parameters."},
     500: {"model": ProblemDetail, "description": "Unexpected server error."},
 }

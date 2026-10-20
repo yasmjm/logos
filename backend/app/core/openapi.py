@@ -3,11 +3,9 @@ from typing import Any
 from fastapi import FastAPI
 
 from app.core.errors import PROBLEM_JSON
-from app.schemas.problem import ProblemDetail, ValidationProblemDetail
 
-_PROBLEM_REFS = {
-    f"#/components/schemas/{model.__name__}" for model in (ProblemDetail, ValidationProblemDetail)
-}
+# Every problem schema is named *ProblemDetail (see app.schemas.problem).
+_PROBLEM_SUFFIX = "ProblemDetail"
 
 
 def use_problem_json_in_openapi(app: FastAPI) -> None:
@@ -27,7 +25,8 @@ def use_problem_json_in_openapi(app: FastAPI) -> None:
                 for response in operation.get("responses", {}).values():
                     content = response.get("content", {})
                     json_body = content.get("application/json")
-                    if json_body and json_body.get("schema", {}).get("$ref") in _PROBLEM_REFS:
+                    ref = (json_body or {}).get("schema", {}).get("$ref", "")
+                    if ref.endswith(_PROBLEM_SUFFIX):
                         content[PROBLEM_JSON] = content.pop("application/json")
         app.openapi_schema = schema
         return schema

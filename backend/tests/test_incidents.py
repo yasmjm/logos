@@ -196,6 +196,24 @@ def test_detail_returns_timeline_in_chronological_order(client: TestClient, db: 
     assert events[1]["analyst"]["name"] == "Ana Souza"
 
 
+def test_detail_timeline_includes_event_note(client: TestClient, db: Session) -> None:
+    ana = make_analyst(db)
+    incident = make_incident(db, status=IncidentStatus.INCONCLUSIVE)
+    make_event(
+        db,
+        incident,
+        from_status=IncidentStatus.INVESTIGATING,
+        to_status=IncidentStatus.INCONCLUSIVE,
+        at=datetime.now(UTC),
+        analyst=ana,
+        note="Motorista não atendeu nenhuma ligação.",
+    )
+
+    events = client.get(f"/incidents/{incident.id}").json()["events"]
+
+    assert events[0]["note"] == "Motorista não atendeu nenhuma ligação."
+
+
 def test_missing_location_is_null_not_empty_string(client: TestClient, db: Session) -> None:
     incident = make_incident(db, highway=None, km=None, location_note="")
 

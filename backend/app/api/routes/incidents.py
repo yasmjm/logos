@@ -3,16 +3,21 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
-from app.api.deps import AnalystIdHeader, DbSession, RequiredAnalystIdHeader, require_ingest_key
+from app.api.deps import ActingAnalystId, AnalystIdHeader, DbSession, require_ingest_key
 from app.api.responses import problem_responses
+from app.core.errors import ProblemException
 from app.models import IncidentCategory, IncidentStatus, Severity
 from app.schemas.incident import (
+    AnalystRef,
     IncidentDetail,
     IncidentListResponse,
     IncidentOut,
     IncidentSummary,
 )
 from app.schemas.incident_create import IncidentCreate
+from app.schemas.incident_status import StatusChange
+from app.schemas.incident_update import IncidentUpdate
+from app.services import incident_status, incident_update
 from app.services import incidents as incident_service
 from app.services.incidents import IncidentFilters
 
@@ -87,13 +92,93 @@ def create_incident(payload: IncidentCreate, db: DbSession, response: Response) 
     responses=problem_responses(404, 422),
     summary="Soft delete an incident",
 )
-def delete_incident(
-    incident_id: uuid.UUID, analyst_id: RequiredAnalystIdHeader, db: DbSession
-) -> Response:
-    if not incident_service.analyst_exists(db, analyst_id):
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT, f"Unknown analyst {analyst_id} in X-Analyst-Id."
-        )
+def delete_incident(incident_id: uuid.UUID, analyst_id: ActingAnalystId, db: DbSession) -> Response:
     if not incident_service.soft_delete_incident(db, incident_id, analyst_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Incident {incident_id} not found.")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+def _not_found(incident_id: uuid.UUID) -> HTTPException:
+    return HTTPException(status.HTTP_404_NOT_FOUND, f"Incident {incident_id} not found.")
+
+
+def _conflict(db: DbSession, incident_id: uuid.UUID, sent_version: int) -> ProblemException:
+    found = incident_service.get_incident(db, incident_id)
+    if found is None:  # deleted in the meantime
+        return ProblemException(status.HTTP_404_NOT_FOUND, f"Incident {incident_id} not found.")
+    current = IncidentDetail.from_parts(*found)
+    return ProblemException(
+        status.HTTP_409_CONFLICT,
+        f"Incident was changed by someone else: version {sent_version} is outdated "
+        f"(current: {current.version}). Review the current state and try again.",
+        current=current,
+    )
+
+
+@router.patch(
+    "/{incident_id}/status",
+    response_model=IncidentDetail,
+    responses=problem_responses(403, 404, 409, 422),
+    summary="Change the status of an incident (optimistic locking)",
+)
+def change_incident_status(
+    incident_id: uuid.UUID, payload: StatusChange, analyst_id: ActingAnalystId, db: DbSession
+) -> IncidentDetail:
+    try:
+        incident_status.change_status(
+            db,
+            incident_id,
+            target=payload.status,
+            version=payload.version,
+            analyst_id=analyst_id,
+            note=payload.note,
+        )
+    except incident_status.IncidentNotFound:
+        raise _not_found(incident_id) from None
+    except incident_status.VersionConflict:
+        raise _conflict(db, incident_id, payload.version) from None
+    except incident_status.NotResponsible as exc:
+        assignee = exc.current.assignee
+        name = assignee.name if assignee else "another analyst"
+        raise ProblemException(
+            status.HTTP_403_FORBIDDEN,
+            f"Only the analyst responsible for this incident ({name}) can change its status.",
+            assignee=AnalystRef.model_validate(assignee) if assignee else None,
+        ) from None
+    except incident_status.InvalidTransition as exc:
+        allowed = [
+            target.value
+            for target, sources in incident_status.TRANSITION_SOURCES.items()
+            if exc.from_status in sources
+        ]
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            f"Cannot change status from {exc.from_status.value} to {exc.to_status.value}. "
+            f"Allowed from {exc.from_status.value}: {', '.join(allowed)}.",
+        ) from None
+
+    return get_incident(incident_id, db)
+
+
+@router.patch(
+    "/{incident_id}",
+    response_model=IncidentDetail,
+    responses=problem_responses(404, 409, 422),
+    summary="Edit an incident (optimistic locking)",
+)
+def update_incident(
+    incident_id: uuid.UUID, payload: IncidentUpdate, analyst_id: ActingAnalystId, db: DbSession
+) -> IncidentDetail:
+    try:
+        incident_update.update_incident(db, incident_id, payload, analyst_id)
+    except incident_status.IncidentNotFound:
+        raise _not_found(incident_id) from None
+    except incident_status.VersionConflict:
+        raise _conflict(db, incident_id, payload.version) from None
+    except incident_update.IncidentNotEditable as exc:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            f"A {exc.status.value} incident cannot be edited. Reopen it first.",
+        ) from None
+
+    return get_incident(incident_id, db)

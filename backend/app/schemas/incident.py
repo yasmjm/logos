@@ -77,6 +77,7 @@ class IncidentEventOut(BaseModel):
     event_type: IncidentEventType
     from_status: IncidentStatus | None
     to_status: IncidentStatus | None
+    note: str | None
     analyst: AnalystRef | None
     created_at: datetime
 
