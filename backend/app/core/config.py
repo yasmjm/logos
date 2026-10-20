@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,6 +10,8 @@ class Settings(BaseSettings):
     app_name: str = "Logos"
     debug: bool = False
     database_url: str = "postgresql+psycopg://logos:logos@localhost:5433/logos"
+    # Shared secret for POST /incidents. When unset, ingestion rejects every request.
+    ingest_api_key: SecretStr | None = None
 
 
 @lru_cache

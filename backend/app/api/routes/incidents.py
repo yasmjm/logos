@@ -1,9 +1,9 @@
 import uuid
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
-from app.api.deps import AnalystIdHeader, DbSession
+from app.api.deps import AnalystIdHeader, DbSession, require_ingest_key
 from app.api.responses import problem_responses
 from app.models import IncidentCategory, IncidentStatus, Severity
 from app.schemas.incident import (
@@ -12,6 +12,7 @@ from app.schemas.incident import (
     IncidentOut,
     IncidentSummary,
 )
+from app.schemas.incident_create import IncidentCreate
 from app.services import incidents as incident_service
 from app.services.incidents import IncidentFilters
 
@@ -64,3 +65,17 @@ def get_incident(incident_id: uuid.UUID, db: DbSession) -> IncidentDetail:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Incident {incident_id} not found.")
     incident, score, events = found
     return IncidentDetail.from_parts(incident, score, events)
+
+
+@router.post(
+    "",
+    status_code=status.HTTP_201_CREATED,
+    response_model=IncidentDetail,
+    responses=problem_responses(401, 422),
+    dependencies=[Depends(require_ingest_key)],
+    summary="Ingest an incident (trucks and integrations)",
+)
+def create_incident(payload: IncidentCreate, db: DbSession, response: Response) -> IncidentDetail:
+    incident_id = incident_service.create_incident(db, payload)
+    response.headers["Location"] = router.url_path_for("get_incident", incident_id=incident_id)
+    return get_incident(incident_id, db)

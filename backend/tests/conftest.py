@@ -6,12 +6,13 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine, make_url, text
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.main import app
 from app.models import Base
 
 TEST_DATABASE_NAME = "logos_test"
+TEST_INGEST_API_KEY = "test-ingest-key"
 
 
 def _test_database_url() -> str:
@@ -62,6 +63,7 @@ def db(db_engine: Engine) -> Generator[Session, None, None]:
 @pytest.fixture
 def client(db: Session) -> Generator[TestClient, None, None]:
     app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_settings] = lambda: Settings(ingest_api_key=TEST_INGEST_API_KEY)
     try:
         yield TestClient(app)
     finally:

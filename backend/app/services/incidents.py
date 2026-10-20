@@ -8,9 +8,11 @@ from app.models import (
     Incident,
     IncidentCategory,
     IncidentEvent,
+    IncidentEventType,
     IncidentStatus,
     Severity,
 )
+from app.schemas.incident_create import IncidentCreate
 
 SEVERITY_WEIGHTS = {Severity.HIGH: 100, Severity.MEDIUM: 50, Severity.LOW: 10}
 CATEGORY_WEIGHTS = {
@@ -128,3 +130,25 @@ def get_active_summary(db: Session) -> tuple[int, dict[Severity, int], dict[Inci
         by_category[category] = count
 
     return sum(by_severity.values()), by_severity, by_category
+
+
+def create_incident(db: Session, data: IncidentCreate) -> uuid.UUID:
+    """Insert the incident and its "created" event in a single transaction."""
+    incident = Incident(
+        id=uuid.uuid4(),
+        **data.model_dump(),
+        status=IncidentStatus.OPEN,
+        version=1,
+    )
+    db.add(incident)
+    db.flush()
+    db.add(
+        IncidentEvent(
+            incident_id=incident.id,
+            event_type=IncidentEventType.CREATED,
+            from_status=None,
+            to_status=IncidentStatus.OPEN,
+        )
+    )
+    db.commit()
+    return incident.id
