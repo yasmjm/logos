@@ -67,6 +67,7 @@ def make_event(
     from_status: IncidentStatus | None = None,
     at: datetime,
     analyst: Analyst | None = None,
+    note: str | None = None,
 ) -> IncidentEvent:
     event = IncidentEvent(
         incident_id=incident.id,
@@ -76,6 +77,7 @@ def make_event(
         else IncidentEventType.STATUS_CHANGED,
         from_status=from_status,
         to_status=to_status,
+        note=note,
         created_at=at,
     )
     db.add(event)
