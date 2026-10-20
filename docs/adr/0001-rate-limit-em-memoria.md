@@ -1,7 +1,7 @@
 # ADR 0001: Rate limit em memória
 
 - **Status:** aceito
-- **Data:** 2026-10-20
+- **Data:** 2026-10-20 (atualizado no deploy, mesma data)
 
 ## Contexto
 
@@ -29,5 +29,9 @@ Usar uma janela deslizante em memória (`app/core/rate_limit.py`), aplicada como
 
 ## Consequências e próximos passos
 
-- **No deploy** (tarefa de deploy), o uvicorn deve rodar com `--proxy-headers` e `--forwarded-allow-ips` configurado com os IPs do proxy da plataforma. Sem isso, vale a limitação 3. Nunca confiar em `X-Forwarded-For` vindo de fora do proxy, porque o cliente pode forjá-lo.
+- **No deploy (Render):** o IP do cliente vem da entrada do `X-Forwarded-For` gravada pelo proxy da plataforma, e não do que o cliente envia.
+  - **Configuração:** `TRUSTED_PROXY_HOPS=1` no `render.yaml`. O app usa a N-ésima entrada **da direita** (`app/core/client_ip.py`), que é a que o proxy do Render acrescentou. Isso funciona tanto se o proxy acrescenta ao header quanto se o sobrescreve.
+  - **Por que não `uvicorn --proxy-headers --forwarded-allow-ips='*'`**, como se planejou: com `'*'`, o uvicorn (0.54) usa a entrada mais à **esquerda**, que é controlada pelo cliente. Bastaria mandar um `X-Forwarded-For` falso diferente a cada tentativa para fugir do limite do login. Também não dá para listar os IPs dos proxies, porque o Render não os publica. Por isso o container roda com `--no-proxy-headers`, e nenhum código usa um IP forjável por engano.
+  - **Pressuposto:** no Render, o serviço só é acessível pelo proxy da plataforma, então sempre existe exatamente um proxy na frente. Se a topologia mudar (por exemplo, com um CDN na frente), ajuste `TRUSTED_PROXY_HOPS`.
+  - **Verificação:** na imagem local com `TRUSTED_PROXY_HOPS=1`, 6 tentativas com a parte esquerda forjada (um IP diferente a cada vez) e o mesmo IP real deram 429 na sexta. Seis IPs reais diferentes não foram bloqueados.
 - **Para escalar** além de uma instância, trocar o armazenamento por um compartilhado (por exemplo, Redis com contadores atômicos). A interface `RateLimiter.hit(key)` isola essa troca.

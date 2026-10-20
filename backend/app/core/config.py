@@ -2,7 +2,7 @@ import logging
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import SecretStr, field_validator, model_validator
+from pydantic import Field, SecretStr, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -34,8 +34,21 @@ class Settings(BaseSettings):
     chaos_enabled: bool = False
     # Evaluator tools: POST /demo/reset and /demo/simulate (otherwise 404).
     demo_mode: bool = False
+    # Reverse proxies in front of the app that append to X-Forwarded-For (Render: 1).
+    # 0 = use the TCP peer address (local development, tests).
+    trusted_proxy_hops: int = Field(default=0, ge=0, le=5)
     # Comma-separated origins allowed by CORS.
     frontend_origins: str = "http://localhost:5173"
+
+    @field_validator("database_url")
+    @classmethod
+    def _use_psycopg_driver(cls, url: str) -> str:
+        # Neon/Render hand out "postgresql://" or "postgres://"; SQLAlchemy would pick
+        # psycopg2 for those. Query parameters (sslmode=require, ...) are kept as is.
+        for scheme in ("postgresql://", "postgres://"):
+            if url.startswith(scheme):
+                return "postgresql+psycopg://" + url.removeprefix(scheme)
+        return url
 
     @field_validator("ingest_api_key", "jwt_secret", mode="before")
     @classmethod
@@ -76,6 +89,19 @@ def warn_if_insecure(settings: Settings) -> None:
         )
 
 
+class ConfigurationError(RuntimeError):
+    """Invalid settings. The message never includes values (they may be secrets)."""
+
+
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    try:
+        return Settings()
+    except ValidationError as exc:
+        problems = "; ".join(
+            f"{'.'.join(map(str, e['loc'])) or 'settings'}: "
+            + e["msg"].removeprefix("Value error, ")
+            for e in exc.errors()
+        )
+        # "from None": Pydantic's own message echoes the inputs (e.g. DATABASE_URL).
+        raise ConfigurationError(f"Invalid configuration: {problems}") from None

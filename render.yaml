@@ -1,0 +1,42 @@
+# Render Blueprint: backend API (Docker) with the database on Neon.
+# DATABASE_URL and FRONTEND_ORIGINS are set in the Render dashboard (sync: false).
+services:
+  - type: web
+    name: logos-api
+    runtime: docker
+    plan: starter
+    region: virginia
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    # Only rebuild when the backend changes (frontend commits do not redeploy the API).
+    buildFilter:
+      paths:
+        - backend/**
+        - render.yaml
+    # Migrations run once per deploy, before the new version takes traffic.
+    preDeployCommand: alembic upgrade head
+    # Readiness: SELECT 1 on the database (liveness stays on /health).
+    healthCheckPath: /ready
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: CHAOS_ENABLED
+        value: "true"
+      - key: DEMO_MODE
+        value: "true"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: INGEST_API_KEY
+        generateValue: true
+      # Render's proxy appends the client IP to X-Forwarded-For (rate limit per IP, ADR 0001).
+      - key: TRUSTED_PROXY_HOPS
+        value: "1"
+      # Neon may be suspended when idle; its first connection can take a few seconds.
+      - key: DB_CONNECT_TIMEOUT_SECONDS
+        value: "10"
+      # Neon *direct* connection string (host without "-pooler"), postgresql://...?sslmode=require
+      - key: DATABASE_URL
+        sync: false
+      # Comma-separated frontend origins; pending until the frontend is deployed.
+      - key: FRONTEND_ORIGINS
+        sync: false
