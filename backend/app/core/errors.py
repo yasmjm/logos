@@ -1,10 +1,12 @@
 """Global error handlers that render every error as RFC 9457 problem+json."""
 
 import logging
+from decimal import Decimal
 from http import HTTPStatus
 from typing import Any
 
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -23,6 +25,21 @@ def problem_response(status: int, detail: str, **extensions: Any) -> JSONRespons
         **extensions,
     }
     return JSONResponse(body, status_code=status, media_type=PROBLEM_JSON)
+
+
+_PREVIEW_LENGTH = 50
+
+
+def _preview(value: str | int | float | Decimal) -> str:
+    """Echo the rejected value, truncated so huge inputs do not bloat the response."""
+    text = repr(str(value)) if isinstance(value, Decimal) else repr(value)
+    return text if len(text) <= _PREVIEW_LENGTH else f"{text[:_PREVIEW_LENGTH]}...'"
+
+
+def _truncate(value: Any) -> Any:
+    if isinstance(value, str) and len(value) > _PREVIEW_LENGTH:
+        return value[:_PREVIEW_LENGTH] + "..."
+    return value
 
 
 def _describe_location(loc: tuple[int | str, ...]) -> str:
@@ -47,16 +64,23 @@ async def _validation_exception_handler(_: Request, exc: RequestValidationError)
         {
             "location": _describe_location(tuple(err["loc"])),
             "message": err["msg"],
-            "input": err.get("input"),
+            "input": _truncate(err.get("input")),
         }
         for err in exc.errors()
     ]
     detail = "; ".join(
         f"Invalid {e['location']}: {e['message']}"
-        + (f" (got {e['input']!r})" if isinstance(e["input"], str | int | float) else "")
+        + (
+            f" (got {_preview(e['input'])})"
+            if isinstance(e["input"], str | int | float | Decimal)
+            else ""
+        )
         for e in errors
     )
-    return problem_response(HTTPStatus.UNPROCESSABLE_ENTITY, detail, errors=errors)
+    # Inputs may be non-JSON types after validators ran (e.g. Decimal), so encode them.
+    return problem_response(
+        HTTPStatus.UNPROCESSABLE_ENTITY, detail, errors=jsonable_encoder(errors)
+    )
 
 
 async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
