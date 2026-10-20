@@ -16,7 +16,8 @@ from app.schemas.incident import (
 )
 from app.schemas.incident_create import IncidentCreate
 from app.schemas.incident_status import StatusChange
-from app.services import incident_status
+from app.schemas.incident_update import IncidentUpdate
+from app.services import incident_status, incident_update
 from app.services import incidents as incident_service
 from app.services.incidents import IncidentFilters
 
@@ -154,6 +155,30 @@ def change_incident_status(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             f"Cannot change status from {exc.from_status.value} to {exc.to_status.value}. "
             f"Allowed from {exc.from_status.value}: {', '.join(allowed)}.",
+        ) from None
+
+    return get_incident(incident_id, db)
+
+
+@router.patch(
+    "/{incident_id}",
+    response_model=IncidentDetail,
+    responses=problem_responses(404, 409, 422),
+    summary="Edit an incident (optimistic locking)",
+)
+def update_incident(
+    incident_id: uuid.UUID, payload: IncidentUpdate, analyst_id: ActingAnalystId, db: DbSession
+) -> IncidentDetail:
+    try:
+        incident_update.update_incident(db, incident_id, payload, analyst_id)
+    except incident_status.IncidentNotFound:
+        raise _not_found(incident_id) from None
+    except incident_status.VersionConflict:
+        raise _conflict(db, incident_id, payload.version) from None
+    except incident_update.IncidentNotEditable as exc:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            f"A {exc.status.value} incident cannot be edited. Reopen it first.",
         ) from None
 
     return get_incident(incident_id, db)
