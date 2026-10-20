@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, delete, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import hash_password
 from app.main import app
@@ -28,6 +29,8 @@ from app.models import (
     IncidentStatus,
     Severity,
 )
+from tests.factories import auth_headers
+from tests.settings import TEST_SETTINGS
 
 THREADS = 2
 
@@ -66,6 +69,7 @@ def committed(db_engine: Engine) -> Generator[tuple[sessionmaker[Session], list,
             yield session
 
     app.dependency_overrides[get_db] = per_request_session
+    app.dependency_overrides[get_settings] = lambda: TEST_SETTINGS
     try:
         yield make_session, analysts, incident
     finally:
@@ -90,7 +94,7 @@ def test_two_analysts_taking_the_same_incident_at_once(committed) -> None:
             response = client.patch(
                 f"/incidents/{incident.id}/status",
                 json={"status": "investigating", "version": 1},
-                headers={"X-Analyst-Id": str(analyst.id)},
+                headers=auth_headers(analyst),
             )
             results[analyst.id] = response.status_code
         except BaseException as exc:  # surface thread failures in the test

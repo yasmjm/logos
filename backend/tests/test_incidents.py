@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.models import IncidentCategory, IncidentStatus, Severity
-from tests.factories import make_analyst, make_event, make_incident
+from tests.factories import auth_headers, make_analyst, make_event, make_incident
 
 PROBLEM_JSON = "application/problem+json"
 
@@ -126,16 +126,14 @@ def test_filters_combine_multiple_values(client: TestClient, db: Session) -> Non
     assert response.json()["total"] == 2
 
 
-def test_assigned_to_me_uses_analyst_header(client: TestClient, db: Session) -> None:
+def test_assigned_to_me_uses_the_token_analyst(client: TestClient, db: Session) -> None:
     ana = make_analyst(db, "ana", "Ana Souza")
     bruno = make_analyst(db, "bruno", "Bruno Lima")
     mine = make_incident(db, status=IncidentStatus.INVESTIGATING, assigned_to=ana.id)
     make_incident(db, status=IncidentStatus.INVESTIGATING, assigned_to=bruno.id)
     make_incident(db)
 
-    response = client.get(
-        "/incidents", params={"assigned_to": "me"}, headers={"X-Analyst-Id": str(ana.id)}
-    )
+    response = client.get("/incidents", params={"assigned_to": "me"}, headers=auth_headers(ana))
 
     assert _ids(response) == [str(mine.id)]
     assert response.json()["items"][0]["assignee"] == {"id": str(ana.id), "name": "Ana Souza"}
@@ -277,13 +275,6 @@ def test_limit_above_maximum_returns_422(client: TestClient) -> None:
 
     assert response.status_code == 422
     assert "query parameter 'limit'" in response.json()["detail"]
-
-
-def test_assigned_to_me_without_header_returns_422(client: TestClient) -> None:
-    response = client.get("/incidents", params={"assigned_to": "me"})
-
-    assert response.status_code == 422
-    assert "X-Analyst-Id" in response.json()["detail"]
 
 
 def test_invalid_incident_id_returns_422(client: TestClient) -> None:

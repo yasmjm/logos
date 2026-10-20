@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Analyst, Incident, IncidentEvent, IncidentEventType, IncidentStatus
-from tests.factories import make_analyst, make_incident
+from tests.factories import auth_headers, make_analyst, make_incident
 
 S = IncidentStatus
 EARLIER = datetime.now(UTC) - timedelta(hours=1)
@@ -27,7 +27,7 @@ def _patch(
     body: dict[str, Any] = {"status": status, "version": version or incident.version, **extra}
     if note is not None:
         body["note"] = note
-    headers = {"X-Analyst-Id": str(analyst.id)} if analyst else {}
+    headers = auth_headers(analyst) if analyst else {}
     return client.patch(f"/incidents/{incident.id}/status", json=body, headers=headers)
 
 
@@ -243,20 +243,11 @@ def test_unknown_field_is_rejected(client: TestClient, db: Session, ana: Analyst
     assert response.status_code == 422
 
 
-def test_unknown_analyst_returns_422(client: TestClient, db: Session) -> None:
-    incident = make_incident(db)
-    ghost = Analyst(id=uuid.uuid4(), name="x", username="x", password_hash="x")
-
-    response = _patch(client, incident, "investigating", ghost)
-
-    assert response.status_code == 422
-    assert "Unknown analyst" in response.json()["detail"]
-
-
-def test_missing_analyst_header_returns_422(client: TestClient, db: Session) -> None:
+def test_status_change_requires_authentication(anon_client: TestClient, db: Session) -> None:
     incident = make_incident(db)
 
-    assert _patch(client, incident, "investigating", None).status_code == 422
+    assert _patch(anon_client, incident, "investigating", None).status_code == 401
+    assert _reload(db, incident).status is S.OPEN
 
 
 # --- optimistic locking ---------------------------------------------------------------

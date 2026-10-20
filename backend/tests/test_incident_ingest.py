@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings, get_settings
 from app.main import app
 from app.models import Incident, IncidentEvent, IncidentEventType, IncidentStatus
-from tests.conftest import TEST_INGEST_API_KEY
+from tests.settings import TEST_INGEST_API_KEY
 
 AUTH = {"X-API-Key": TEST_INGEST_API_KEY}
 VALID: dict[str, Any] = {

@@ -16,7 +16,7 @@ from app.models import (
     IncidentStatus,
     Severity,
 )
-from tests.factories import make_analyst, make_incident
+from tests.factories import auth_headers, make_analyst, make_incident
 
 S = IncidentStatus
 
@@ -28,9 +28,7 @@ def ana(db: Session) -> Analyst:
 
 def _edit(client: TestClient, incident: Incident, analyst: Analyst, **body: Any):
     body.setdefault("version", incident.version)
-    return client.patch(
-        f"/incidents/{incident.id}", json=body, headers={"X-Analyst-Id": str(analyst.id)}
-    )
+    return client.patch(f"/incidents/{incident.id}", json=body, headers=auth_headers(analyst))
 
 
 def _reload(db: Session, incident: Incident) -> Incident:
@@ -220,7 +218,7 @@ def test_missing_version_returns_422(client: TestClient, db: Session, ana: Analy
     response = client.patch(
         f"/incidents/{incident.id}",
         json={"severity": "high"},
-        headers={"X-Analyst-Id": str(ana.id)},
+        headers=auth_headers(ana),
     )
 
     assert response.status_code == 422

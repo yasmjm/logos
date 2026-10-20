@@ -32,3 +32,8 @@ def verify_password(password: str, password_hash: str) -> bool:
         dklen=len(expected),
     )
     return hmac.compare_digest(digest, expected)
+
+
+# Verified when the username does not exist, so the response time does not reveal
+# whether an account exists.
+DUMMY_PASSWORD_HASH = hash_password(secrets.token_urlsafe(16))
