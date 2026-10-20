@@ -4,19 +4,19 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Incident, IncidentEvent, IncidentEventType, IncidentStatus
-from tests.factories import make_analyst, make_incident
+from app.models import Analyst, Incident, IncidentEvent, IncidentEventType, IncidentStatus
+from tests.factories import auth_headers, make_analyst, make_incident
 
 
-def _delete(client: TestClient, incident_id: uuid.UUID, analyst_id: uuid.UUID):
-    return client.delete(f"/incidents/{incident_id}", headers={"X-Analyst-Id": str(analyst_id)})
+def _delete(client: TestClient, incident_id: uuid.UUID, analyst: Analyst):
+    return client.delete(f"/incidents/{incident_id}", headers=auth_headers(analyst))
 
 
 def test_soft_delete_keeps_row_and_records_event(client: TestClient, db: Session) -> None:
     ana = make_analyst(db)
     incident = make_incident(db, status=IncidentStatus.INVESTIGATING, version=2)
 
-    response = _delete(client, incident.id, ana.id)
+    response = _delete(client, incident.id, ana)
 
     assert response.status_code == 204
     assert response.content == b""
@@ -43,7 +43,7 @@ def test_deleted_incident_disappears_from_listing_and_detail(
     kept = make_incident(db)
     removed = make_incident(db)
 
-    _delete(client, removed.id, ana.id)
+    _delete(client, removed.id, ana)
 
     listing = client.get("/incidents").json()
     assert [item["id"] for item in listing["items"]] == [str(kept.id)]
@@ -55,8 +55,8 @@ def test_deleting_twice_returns_404_and_records_one_event(client: TestClient, db
     ana = make_analyst(db)
     incident = make_incident(db)
 
-    assert _delete(client, incident.id, ana.id).status_code == 204
-    second = _delete(client, incident.id, ana.id)
+    assert _delete(client, incident.id, ana).status_code == 204
+    second = _delete(client, incident.id, ana)
 
     assert second.status_code == 404
     assert second.headers["content-type"] == "application/problem+json"
@@ -69,23 +69,14 @@ def test_deleting_twice_returns_404_and_records_one_event(client: TestClient, db
 def test_deleting_unknown_incident_returns_404(client: TestClient, db: Session) -> None:
     ana = make_analyst(db)
 
-    assert _delete(client, uuid.uuid4(), ana.id).status_code == 404
+    assert _delete(client, uuid.uuid4(), ana).status_code == 404
 
 
-def test_delete_requires_analyst_header(client: TestClient, db: Session) -> None:
+def test_delete_requires_authentication(anon_client: TestClient, db: Session) -> None:
     incident = make_incident(db)
 
-    response = client.delete(f"/incidents/{incident.id}")
+    response = anon_client.delete(f"/incidents/{incident.id}")
 
-    assert response.status_code == 422
-    assert "header parameter 'X-Analyst-Id'" in response.json()["detail"]
-
-
-def test_delete_with_unknown_analyst_returns_422(client: TestClient, db: Session) -> None:
-    incident = make_incident(db)
-
-    response = _delete(client, incident.id, uuid.uuid4())
-
-    assert response.status_code == 422
+    assert response.status_code == 401
     db.expire_all()
     assert db.get(Incident, incident.id).deleted_at is None

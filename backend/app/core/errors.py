@@ -56,6 +56,18 @@ async def _problem_exception_handler(_: Request, exc: ProblemException) -> JSONR
     return problem_response(exc.status, exc.detail, **jsonable_encoder(exc.extensions))
 
 
+_PYDANTIC_PREFIXES = ("Value error, ", "Assertion failed, ")
+
+
+def _clean_message(message: str) -> str:
+    """Drop Pydantic's "Value error, " prefix from messages raised by our validators."""
+    for prefix in _PYDANTIC_PREFIXES:
+        if message.startswith(prefix):
+            message = message.removeprefix(prefix)
+            return message[:1].upper() + message[1:]
+    return message
+
+
 def _describe_location(loc: tuple[int | str, ...]) -> str:
     source, *path = loc
     # Drop list indexes so multi-value filters read as "severity", not "severity.0".
@@ -77,7 +89,7 @@ async def _validation_exception_handler(_: Request, exc: RequestValidationError)
     errors = [
         {
             "location": _describe_location(tuple(err["loc"])),
-            "message": err["msg"],
+            "message": _clean_message(err["msg"]),
             "input": _truncate(err.get("input")),
         }
         for err in exc.errors()

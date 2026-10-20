@@ -6,13 +6,15 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine, make_url, text
 from sqlalchemy.orm import Session
 
-from app.core.config import Settings, get_settings
+from app.core.config import get_settings
 from app.core.database import get_db
+from app.core.rate_limit import ALL_LIMITERS
 from app.main import app
-from app.models import Base
+from app.models import Analyst, Base
+from tests.factories import auth_headers, make_analyst
+from tests.settings import TEST_SETTINGS
 
 TEST_DATABASE_NAME = "logos_test"
-TEST_INGEST_API_KEY = "test-ingest-key"
 
 
 def _test_database_url() -> str:
@@ -61,10 +63,33 @@ def db(db_engine: Engine) -> Generator[Session, None, None]:
 
 
 @pytest.fixture
-def client(db: Session) -> Generator[TestClient, None, None]:
+def anon_client(db: Session) -> Generator[TestClient, None, None]:
+    """Client without credentials."""
     app.dependency_overrides[get_db] = lambda: db
-    app.dependency_overrides[get_settings] = lambda: Settings(ingest_api_key=TEST_INGEST_API_KEY)
+    app.dependency_overrides[get_settings] = lambda: TEST_SETTINGS
     try:
         yield TestClient(app)
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def current_analyst(db: Session) -> Analyst:
+    return make_analyst(db, "tester", "Analista de Teste")
+
+
+@pytest.fixture
+def client(anon_client: TestClient, current_analyst: Analyst) -> TestClient:
+    """Client logged in as current_analyst (pass headers=auth_headers(x) to act as x)."""
+    anon_client.headers.update(auth_headers(current_analyst))
+    return anon_client
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limits() -> Generator[None, None, None]:
+    """Rate limits are process-wide state; start every test from zero."""
+    for limiter in ALL_LIMITERS:
+        limiter.reset()
+    yield
+    for limiter in ALL_LIMITERS:
+        limiter.reset()

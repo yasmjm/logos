@@ -3,7 +3,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
-from app.api.deps import ActingAnalystId, AnalystIdHeader, DbSession, require_ingest_key
+from app.api.deps import CurrentAnalyst, DbSession, limit_ingestion
 from app.api.responses import problem_responses
 from app.core.errors import ProblemException
 from app.models import IncidentCategory, IncidentStatus, Severity
@@ -21,13 +21,14 @@ from app.services import incident_status, incident_update
 from app.services import incidents as incident_service
 from app.services.incidents import IncidentFilters
 
-router = APIRouter(prefix="/incidents", tags=["incidents"])
+# Every route here is authenticated (analyst token, or X-API-Key for ingestion).
+router = APIRouter(prefix="/incidents", tags=["incidents"], responses=problem_responses(401))
 
 
 @router.get("", response_model=IncidentListResponse, responses=problem_responses(422))
 def list_incidents(
     db: DbSession,
-    analyst_id: AnalystIdHeader = None,
+    analyst: CurrentAnalyst,
     severity: Annotated[list[Severity] | None, Query()] = None,
     category: Annotated[list[IncidentCategory] | None, Query()] = None,
     status_: Annotated[list[IncidentStatus] | None, Query(alias="status")] = None,
@@ -35,17 +36,11 @@ def list_incidents(
     limit: Annotated[int, Query(ge=1, le=200)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> IncidentListResponse:
-    if assigned_to == "me" and analyst_id is None:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            "The X-Analyst-Id header is required when assigned_to=me.",
-        )
-
     filters = IncidentFilters(
         severities=severity,
         categories=category,
         statuses=status_,
-        assigned_to=analyst_id if assigned_to == "me" else None,
+        assigned_to=analyst.id if assigned_to == "me" else None,
     )
     rows, total = incident_service.list_incidents(db, filters, limit, offset)
     return IncidentListResponse(
@@ -58,32 +53,36 @@ def list_incidents(
 
 # Declared before /{incident_id} so "summary" is not parsed as an id.
 @router.get("/summary", response_model=IncidentSummary)
-def incidents_summary(db: DbSession) -> IncidentSummary:
+def incidents_summary(db: DbSession, _: CurrentAnalyst) -> IncidentSummary:
     total, by_severity, by_category = incident_service.get_active_summary(db)
     return IncidentSummary(total_active=total, by_severity=by_severity, by_category=by_category)
 
 
 @router.get("/{incident_id}", response_model=IncidentDetail, responses=problem_responses(404, 422))
-def get_incident(incident_id: uuid.UUID, db: DbSession) -> IncidentDetail:
+def get_incident(incident_id: uuid.UUID, db: DbSession, _: CurrentAnalyst) -> IncidentDetail:
+    return _detail(db, incident_id)
+
+
+def _detail(db: DbSession, incident_id: uuid.UUID) -> IncidentDetail:
     found = incident_service.get_incident(db, incident_id)
     if found is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Incident {incident_id} not found.")
-    incident, score, events = found
-    return IncidentDetail.from_parts(incident, score, events)
+        raise _not_found(incident_id)
+    return IncidentDetail.from_parts(*found)
 
 
 @router.post(
     "",
     status_code=status.HTTP_201_CREATED,
     response_model=IncidentDetail,
-    responses=problem_responses(401, 422),
-    dependencies=[Depends(require_ingest_key)],
+    responses=problem_responses(422, 429),
+    dependencies=[Depends(limit_ingestion)],  # validates X-API-Key, then rate limits
     summary="Ingest an incident (trucks and integrations)",
+    description="Authenticated with X-API-Key. Limited to 120 requests per minute per key.",
 )
 def create_incident(payload: IncidentCreate, db: DbSession, response: Response) -> IncidentDetail:
     incident_id = incident_service.create_incident(db, payload)
     response.headers["Location"] = router.url_path_for("get_incident", incident_id=incident_id)
-    return get_incident(incident_id, db)
+    return _detail(db, incident_id)
 
 
 @router.delete(
@@ -92,8 +91,8 @@ def create_incident(payload: IncidentCreate, db: DbSession, response: Response) 
     responses=problem_responses(404, 422),
     summary="Soft delete an incident",
 )
-def delete_incident(incident_id: uuid.UUID, analyst_id: ActingAnalystId, db: DbSession) -> Response:
-    if not incident_service.soft_delete_incident(db, incident_id, analyst_id):
+def delete_incident(incident_id: uuid.UUID, analyst: CurrentAnalyst, db: DbSession) -> Response:
+    if not incident_service.soft_delete_incident(db, incident_id, analyst.id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Incident {incident_id} not found.")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -122,7 +121,7 @@ def _conflict(db: DbSession, incident_id: uuid.UUID, sent_version: int) -> Probl
     summary="Change the status of an incident (optimistic locking)",
 )
 def change_incident_status(
-    incident_id: uuid.UUID, payload: StatusChange, analyst_id: ActingAnalystId, db: DbSession
+    incident_id: uuid.UUID, payload: StatusChange, analyst: CurrentAnalyst, db: DbSession
 ) -> IncidentDetail:
     try:
         incident_status.change_status(
@@ -130,7 +129,7 @@ def change_incident_status(
             incident_id,
             target=payload.status,
             version=payload.version,
-            analyst_id=analyst_id,
+            analyst_id=analyst.id,
             note=payload.note,
         )
     except incident_status.IncidentNotFound:
@@ -157,7 +156,7 @@ def change_incident_status(
             f"Allowed from {exc.from_status.value}: {', '.join(allowed)}.",
         ) from None
 
-    return get_incident(incident_id, db)
+    return _detail(db, incident_id)
 
 
 @router.patch(
@@ -167,10 +166,10 @@ def change_incident_status(
     summary="Edit an incident (optimistic locking)",
 )
 def update_incident(
-    incident_id: uuid.UUID, payload: IncidentUpdate, analyst_id: ActingAnalystId, db: DbSession
+    incident_id: uuid.UUID, payload: IncidentUpdate, analyst: CurrentAnalyst, db: DbSession
 ) -> IncidentDetail:
     try:
-        incident_update.update_incident(db, incident_id, payload, analyst_id)
+        incident_update.update_incident(db, incident_id, payload, analyst.id)
     except incident_status.IncidentNotFound:
         raise _not_found(incident_id) from None
     except incident_status.VersionConflict:
@@ -181,4 +180,4 @@ def update_incident(
             f"A {exc.status.value} incident cannot be edited. Reopen it first.",
         ) from None
 
-    return get_incident(incident_id, db)
+    return _detail(db, incident_id)

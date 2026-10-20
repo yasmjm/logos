@@ -21,6 +21,13 @@ _RESPONSES: dict[int, dict[str, Any]] = {
         "description": "Version is outdated; `current` holds the incident as it is now.",
     },
     422: {"model": ValidationProblemDetail, "description": "Invalid request parameters."},
+    429: {
+        "model": ProblemDetail,
+        "description": "Rate limit exceeded; wait for the Retry-After header (seconds).",
+        "headers": {
+            "Retry-After": {"description": "Seconds to wait.", "schema": {"type": "integer"}}
+        },
+    },
     500: {"model": ProblemDetail, "description": "Unexpected server error."},
 }
 

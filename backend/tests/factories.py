@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
+from app.core.tokens import create_access_token
 from app.models import (
     Analyst,
     Incident,
@@ -15,12 +16,21 @@ from app.models import (
     IncidentStatus,
     Severity,
 )
+from tests.settings import TEST_SETTINGS
+
+_DEFAULT_PASSWORD_HASH = hash_password("x")
 
 
-def make_analyst(db: Session, username: str = "ana", name: str = "Ana Souza") -> Analyst:
-    analyst = Analyst(
-        id=uuid.uuid4(), name=name, username=username, password_hash=hash_password("x")
-    )
+def auth_headers(analyst: Analyst) -> dict[str, str]:
+    return {"Authorization": f"Bearer {create_access_token(analyst.id, TEST_SETTINGS)}"}
+
+
+def make_analyst(
+    db: Session, username: str = "ana", name: str = "Ana Souza", password: str | None = None
+) -> Analyst:
+    # Hashing is slow on purpose (scrypt); reuse one hash unless a real password is needed.
+    password_hash = hash_password(password) if password else _DEFAULT_PASSWORD_HASH
+    analyst = Analyst(id=uuid.uuid4(), name=name, username=username, password_hash=password_hash)
     db.add(analyst)
     db.flush()
     return analyst
