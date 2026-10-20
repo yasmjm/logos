@@ -12,6 +12,7 @@ from typing import Any
 from sqlalchemy import ColumnElement, case, func, literal, or_, select, update
 from sqlalchemy.orm import Session
 
+from app.core.retry import read_with_retry
 from app.models import Incident, IncidentEvent, IncidentEventType, IncidentStatus
 from app.schemas.incident_create import NOTE_SEPARATOR, clip, room_for_note
 from app.schemas.incident_update import IncidentUpdate
@@ -107,7 +108,7 @@ def update_incident(
             db.commit()
             return True
 
-    _raise_unless_unchanged(db, incident_id, payload.version)
+    read_with_retry(db, lambda: _raise_unless_unchanged(db, incident_id, payload.version))
     return False
 
 

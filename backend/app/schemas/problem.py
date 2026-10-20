@@ -14,6 +14,17 @@ class ProblemDetail(BaseModel):
     detail: str = Field(examples=["Incident 3f0c... not found."])
 
 
+class ServerProblemDetail(ProblemDetail):
+    """500 and 503: include the request ID so support can find the logs."""
+
+    title: str = Field(examples=["Service Unavailable"])
+    status: int = Field(examples=[503])
+    detail: str = Field(
+        examples=["The database is temporarily unavailable. Please try again shortly."]
+    )
+    request_id: str | None = Field(default=None, examples=["9f1c2e7a4b3d4e5f8a6b7c8d9e0f1a2b"])
+
+
 class InvalidParam(BaseModel):
     location: str = Field(examples=["query parameter 'severity'"])
     message: str = Field(examples=["Input should be 'high', 'medium' or 'low'"])

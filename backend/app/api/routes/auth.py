@@ -5,11 +5,12 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.deps import AppSettings, CurrentAnalyst, DbSession, limit_login_attempts
 from app.api.responses import problem_responses
+from app.core.retry import read_with_retry
 from app.core.tokens import create_access_token
 from app.schemas.auth import AnalystOut, TokenResponse
 from app.services import auth as auth_service
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"], responses=problem_responses(503))
 
 
 @router.post(
@@ -23,7 +24,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 def login(
     form: Annotated[OAuth2PasswordRequestForm, Depends()], db: DbSession, settings: AppSettings
 ) -> TokenResponse:
-    analyst = auth_service.authenticate(db, form.username, form.password)
+    analyst = read_with_retry(
+        db, lambda: auth_service.authenticate(db, form.username, form.password)
+    )
     if analyst is None:
         # Same message whether the user exists or not.
         raise HTTPException(

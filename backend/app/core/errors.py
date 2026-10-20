@@ -11,6 +11,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.core.db_errors import DATABASE_UNAVAILABLE_ERRORS, is_statement_timeout
+from app.core.request_context import current_request_id
+
 logger = logging.getLogger(__name__)
 
 PROBLEM_JSON = "application/problem+json"
@@ -109,14 +112,52 @@ async def _validation_exception_handler(_: Request, exc: RequestValidationError)
     )
 
 
-async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    logger.exception("Unhandled error on %s %s", request.method, request.url.path, exc_info=exc)
+def with_request_id(**extensions: Any) -> dict[str, Any]:
+    """Adds the request ID (for support) to error bodies such as 500 and 503."""
+    request_id = current_request_id()
+    return {**extensions, "request_id": request_id} if request_id else extensions
+
+
+def internal_error_response() -> JSONResponse:
     return problem_response(
-        HTTPStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred. Please try again."
+        HTTPStatus.INTERNAL_SERVER_ERROR,
+        "An unexpected error occurred. Please try again.",
+        **with_request_id(),
     )
 
 
+async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path, exc_info=exc)
+    return internal_error_response()
+
+
+DATABASE_RETRY_AFTER_SECONDS = 5
+
+
+async def _database_unavailable_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Database down, unreachable, pool exhausted or too slow: 503, never 500."""
+    timeout = is_statement_timeout(exc)
+    logger.warning(
+        "Database unavailable on %s %s: %s",
+        request.method,
+        request.url.path,
+        type(exc).__name__,
+        extra={"fields": {"request_id": current_request_id()}},
+    )
+    response = problem_response(
+        HTTPStatus.SERVICE_UNAVAILABLE,
+        "The database took too long to respond. Please try again."
+        if timeout
+        else "The database is temporarily unavailable. Please try again shortly.",
+        **with_request_id(),
+    )
+    response.headers["Retry-After"] = str(DATABASE_RETRY_AFTER_SECONDS)
+    return response
+
+
 def register_error_handlers(app: FastAPI) -> None:
+    for error in DATABASE_UNAVAILABLE_ERRORS:
+        app.add_exception_handler(error, _database_unavailable_handler)
     app.add_exception_handler(ProblemException, _problem_exception_handler)
     app.add_exception_handler(StarletteHTTPException, _http_exception_handler)
     app.add_exception_handler(RequestValidationError, _validation_exception_handler)

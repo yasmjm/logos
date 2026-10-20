@@ -1,11 +1,28 @@
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 
-from sqlalchemy import MetaData, create_engine
+from sqlalchemy import Engine, MetaData, create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
+from app.core.retry import retry_transient
 
-engine = create_engine(get_settings().database_url, pool_pre_ping=True)
+
+def build_engine(settings: Settings) -> Engine:
+    return create_engine(
+        settings.database_url,
+        pool_pre_ping=True,  # drop dead connections before handing them out
+        pool_size=settings.db_pool_size,
+        max_overflow=settings.db_max_overflow,
+        pool_timeout=settings.db_pool_timeout_seconds,
+        connect_args={
+            "connect_timeout": settings.db_connect_timeout_seconds,
+            # Server-side cap for every statement; long queries are cancelled (57014).
+            "options": f"-c statement_timeout={settings.db_statement_timeout_ms}",
+        },
+    )
+
+
+engine = build_engine(get_settings())
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 # Deterministic constraint names so Alembic migrations are stable and reviewable.
@@ -22,9 +39,19 @@ class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
-def get_db() -> Generator[Session, None, None]:
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+def session_dependency(
+    session_factory: Callable[[], Session],
+) -> Callable[[], Generator[Session, None, None]]:
+    def get_db() -> Generator[Session, None, None]:
+        db = session_factory()
+        try:
+            # Check out a connection up front, retrying transient failures (e.g. a restart).
+            retry_transient(db.connection, before_retry=db.rollback)
+            yield db
+        finally:
+            db.close()
+
+    return get_db
+
+
+get_db = session_dependency(SessionLocal)
