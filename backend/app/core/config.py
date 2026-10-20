@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     # Signs analyst access tokens (HS256). Required in production.
     jwt_secret: SecretStr | None = None
     jwt_expires_minutes: int = 8 * 60  # one shift
+    # Resilience demo: enables /chaos (latency and simulated failures on /incidents).
+    chaos_enabled: bool = False
     # Comma-separated origins allowed by CORS.
     frontend_origins: str = "http://localhost:5173"
 
