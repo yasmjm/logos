@@ -6,6 +6,7 @@ from app.schemas.problem import (
     ConflictProblemDetail,
     NotResponsibleProblemDetail,
     ProblemDetail,
+    ServerProblemDetail,
     ValidationProblemDetail,
 )
 
@@ -28,7 +29,14 @@ _RESPONSES: dict[int, dict[str, Any]] = {
             "Retry-After": {"description": "Seconds to wait.", "schema": {"type": "integer"}}
         },
     },
-    500: {"model": ProblemDetail, "description": "Unexpected server error."},
+    500: {"model": ServerProblemDetail, "description": "Unexpected server error."},
+    503: {
+        "model": ServerProblemDetail,
+        "description": "Database unavailable or too slow; retry after Retry-After seconds.",
+        "headers": {
+            "Retry-After": {"description": "Seconds to wait.", "schema": {"type": "integer"}}
+        },
+    },
 }
 
 

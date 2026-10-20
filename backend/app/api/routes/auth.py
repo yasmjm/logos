@@ -10,7 +10,7 @@ from app.core.tokens import create_access_token
 from app.schemas.auth import AnalystOut, TokenResponse
 from app.services import auth as auth_service
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"], responses=problem_responses(503))
 
 
 @router.post(

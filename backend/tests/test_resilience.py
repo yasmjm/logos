@@ -173,3 +173,40 @@ def test_real_statement_timeout_returns_503_without_retry(db: Session) -> None:
     assert response.status_code == 503
     assert "took too long" in response.json()["detail"]
     assert len(calls) == 1
+
+
+# --- liveness and readiness -----------------------------------------------------------
+
+
+def test_ready_when_database_answers(anon_client: TestClient) -> None:
+    response = anon_client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready"}
+
+
+def test_ready_returns_503_when_database_is_down(
+    anon_client: TestClient, database_down: None
+) -> None:
+    response = anon_client.get("/ready")
+
+    assert response.status_code == 503
+    assert response.headers["content-type"] == PROBLEM_JSON
+    assert response.headers["retry-after"] == "5"
+    assert response.json()["request_id"] == response.headers["x-request-id"]
+
+
+def test_health_stays_up_when_database_is_down(
+    anon_client: TestClient, database_down: None
+) -> None:
+    response = anon_client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+def test_openapi_documents_503_with_retry_after() -> None:
+    operation = app.openapi()["paths"]["/ready"]["get"]
+
+    assert "Retry-After" in operation["responses"]["503"]["headers"]
+    assert "503" not in app.openapi()["paths"]["/health"]["get"]["responses"]

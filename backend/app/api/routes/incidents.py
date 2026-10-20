@@ -23,7 +23,7 @@ from app.services import incidents as incident_service
 from app.services.incidents import IncidentFilters
 
 # Every route here is authenticated (analyst token, or X-API-Key for ingestion).
-router = APIRouter(prefix="/incidents", tags=["incidents"], responses=problem_responses(401))
+router = APIRouter(prefix="/incidents", tags=["incidents"], responses=problem_responses(401, 503))
 
 
 @router.get("", response_model=IncidentListResponse, responses=problem_responses(422))
