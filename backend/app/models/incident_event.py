@@ -26,7 +26,10 @@ class IncidentEvent(Base):
     from_status: Mapped[IncidentStatus | None] = mapped_column(
         string_enum(IncidentStatus, "from_status")
     )
-    to_status: Mapped[IncidentStatus] = mapped_column(string_enum(IncidentStatus, "to_status"))
+    # Null for events that do not change status (deleted, updated).
+    to_status: Mapped[IncidentStatus | None] = mapped_column(
+        string_enum(IncidentStatus, "to_status")
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     analyst: Mapped[Analyst | None] = relationship()
