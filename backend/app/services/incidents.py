@@ -5,7 +5,6 @@ from sqlalchemy import ColumnElement, Integer, Select, case, cast, func, select,
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import (
-    Analyst,
     Incident,
     IncidentCategory,
     IncidentEvent,
@@ -153,10 +152,6 @@ def create_incident(db: Session, data: IncidentCreate) -> uuid.UUID:
     )
     db.commit()
     return incident.id
-
-
-def analyst_exists(db: Session, analyst_id: uuid.UUID) -> bool:
-    return db.get(Analyst, analyst_id) is not None
 
 
 def soft_delete_incident(db: Session, incident_id: uuid.UUID, analyst_id: uuid.UUID) -> bool:

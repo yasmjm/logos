@@ -2,6 +2,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from app.schemas.incident import AnalystRef, IncidentDetail
+
 
 class ProblemDetail(BaseModel):
     """RFC 9457 problem details, returned as application/problem+json."""
@@ -28,3 +30,23 @@ class ValidationProblemDetail(ProblemDetail):
         ]
     )
     errors: list[InvalidParam]
+
+
+class NotResponsibleProblemDetail(ProblemDetail):
+    title: str = Field(examples=["Forbidden"])
+    status: int = Field(examples=[403])
+    detail: str = Field(
+        examples=["Only the analyst responsible for this incident (Ana Souza) can change it."]
+    )
+    assignee: AnalystRef | None
+
+
+class ConflictProblemDetail(ProblemDetail):
+    """409: the client's version is outdated. "current" is the incident as it is now."""
+
+    title: str = Field(examples=["Conflict"])
+    status: int = Field(examples=[409])
+    detail: str = Field(
+        examples=["Incident was changed by someone else: version 2 is outdated (current: 3)."]
+    )
+    current: IncidentDetail

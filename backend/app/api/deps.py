@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
+from app.models import Analyst
 
 DbSession = Annotated[Session, Depends(get_db)]
 
@@ -34,3 +35,15 @@ def require_ingest_key(
         or not secrets.compare_digest(api_key.encode(), expected.get_secret_value().encode())
     ):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing or invalid API key.")
+
+
+def require_existing_analyst(analyst_id: RequiredAnalystIdHeader, db: DbSession) -> uuid.UUID:
+    if db.get(Analyst, analyst_id) is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, f"Unknown analyst {analyst_id} in X-Analyst-Id."
+        )
+    return analyst_id
+
+
+# The acting analyst, validated against the database (temporary until T5).
+ActingAnalystId = Annotated[uuid.UUID, Depends(require_existing_analyst)]

@@ -25,9 +25,10 @@ def test_error_responses_are_documented_as_problem_json() -> None:
     assert "application/json" not in detail["404"]["content"]
 
 
-def test_every_route_documents_500() -> None:
-    for path in app.openapi()["paths"]:
-        assert _schema_ref(_responses(path)["500"]) == "ProblemDetail"
+def test_every_operation_documents_500() -> None:
+    for operations in app.openapi()["paths"].values():
+        for operation in operations.values():
+            assert _schema_ref(operation["responses"]["500"]) == "ProblemDetail"
 
 
 def test_fastapi_default_validation_schema_is_not_exposed() -> None:
