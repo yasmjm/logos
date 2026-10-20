@@ -5,10 +5,12 @@ from app.api.responses import problem_responses
 from app.api.routes import auth, health, incidents
 from app.core.config import Settings, get_settings, warn_if_insecure
 from app.core.errors import register_error_handlers
+from app.core.observability import RequestContextMiddleware, configure_logging
 from app.core.openapi import use_problem_json_in_openapi
 
 
 def create_app(settings: Settings) -> FastAPI:
+    configure_logging()
     warn_if_insecure(settings)
     app = FastAPI(title=settings.app_name, debug=settings.debug, responses=problem_responses(500))
     # Auth travels in the Authorization header (no cookies), so credentials are not
@@ -22,6 +24,8 @@ def create_app(settings: Settings) -> FastAPI:
         expose_headers=["Location", "Retry-After"],
         max_age=600,
     )
+    # Added last, so it wraps everything: every response (even 500) gets X-Request-ID.
+    app.add_middleware(RequestContextMiddleware)
     register_error_handlers(app)
     use_problem_json_in_openapi(app)
     app.include_router(health.router)
