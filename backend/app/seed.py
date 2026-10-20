@@ -99,65 +99,238 @@ STRETCHES = [
     Stretch("BR-277", 50, 600, ("Curitiba/PR", "Guarapuava/PR", "Cascavel/PR")),
 ]
 
-DESCRIPTIONS = {
-    IncidentCategory.VEHICLE_ACCIDENT: [
-        "Colisão traseira com veículo de passeio; motorista sem ferimentos, carga íntegra.",
-        "Caminhão tombou no acostamento após manobra evasiva; carga parcialmente avariada.",
-        "Engavetamento envolvendo três veículos; caminhão com danos na lateral.",
-        "Saída de pista em curva acentuada; veículo parado no canteiro.",
+
+@dataclass(frozen=True)
+class Template:
+    category: IncidentCategory
+    severity: Severity
+    description: str
+
+
+# Each description has a fixed, coherent severity. The seed draws the severity first
+# (to keep the target distribution) and then a template with that severity.
+_C = IncidentCategory
+_S = Severity
+TEMPLATES = [
+    # vehicle_accident
+    Template(
+        _C.VEHICLE_ACCIDENT,
+        _S.LOW,
         "Raspão em ônibus durante ultrapassagem; danos leves no retrovisor.",
-    ],
-    IncidentCategory.ACCIDENT_WITH_VICTIMS: [
+    ),
+    Template(
+        _C.VEHICLE_ACCIDENT,
+        _S.LOW,
+        "Batida leve em manobra no pátio do posto; para-choque amassado.",
+    ),
+    Template(
+        _C.VEHICLE_ACCIDENT,
+        _S.LOW,
+        "Retrovisor quebrado por galho em trecho estreito; viagem segue normalmente.",
+    ),
+    Template(
+        _C.VEHICLE_ACCIDENT,
+        _S.MEDIUM,
+        "Colisão traseira com veículo de passeio em baixa velocidade; sem feridos, carga íntegra.",
+    ),
+    Template(
+        _C.VEHICLE_ACCIDENT,
+        _S.MEDIUM,
+        "Engavetamento envolvendo três veículos; caminhão com danos na lateral, sem feridos.",
+    ),
+    Template(
+        _C.VEHICLE_ACCIDENT,
+        _S.MEDIUM,
+        "Saída de pista em curva acentuada; veículo parado no canteiro central.",
+    ),
+    Template(
+        _C.VEHICLE_ACCIDENT,
+        _S.MEDIUM,
+        "Colisão com animal na pista; radiador danificado, veículo sem condições de seguir.",
+    ),
+    Template(
+        _C.VEHICLE_ACCIDENT,
+        _S.HIGH,
+        "Caminhão tombou no acostamento após manobra evasiva; carga parcialmente avariada.",
+    ),
+    Template(
+        _C.VEHICLE_ACCIDENT,
+        _S.HIGH,
+        "Carreta tombada atravessada na pista com carga de combustível; risco de vazamento.",
+    ),
+    # accident_with_victims
+    Template(
+        _C.ACCIDENT_WITH_VICTIMS,
+        _S.MEDIUM,
+        "Motorista com corte no braço após colisão leve; atendido no local, sem remoção.",
+    ),
+    Template(
+        _C.ACCIDENT_WITH_VICTIMS,
+        _S.MEDIUM,
+        "Ocupante do outro veículo com escoriações leves; recusou atendimento médico.",
+    ),
+    Template(
+        _C.ACCIDENT_WITH_VICTIMS,
+        _S.HIGH,
         "Colisão frontal com carro de passeio; duas vítimas, SAMU acionado.",
+    ),
+    Template(
+        _C.ACCIDENT_WITH_VICTIMS,
+        _S.HIGH,
         "Atropelamento de pedestre na faixa; motorista em choque, PRF no local.",
+    ),
+    Template(
+        _C.ACCIDENT_WITH_VICTIMS,
+        _S.HIGH,
         "Motorista ferido após tombamento; aguardando resgate do Corpo de Bombeiros.",
+    ),
+    Template(
+        _C.ACCIDENT_WITH_VICTIMS,
+        _S.HIGH,
         "Colisão com motocicleta; motociclista com ferimentos graves.",
-    ],
-    IncidentCategory.ADVERSE_WEATHER: [
-        "Neblina intensa com visibilidade abaixo de 50 metros; motorista parado em posto.",
+    ),
+    Template(
+        _C.ACCIDENT_WITH_VICTIMS,
+        _S.HIGH,
+        "Vítima presa às ferragens após colisão lateral; resgate a caminho.",
+    ),
+    Template(
+        _C.ACCIDENT_WITH_VICTIMS,
+        _S.HIGH,
+        "Motorista desacordado após colisão com mureta; SAMU acionado.",
+    ),
+    # adverse_weather
+    Template(
+        _C.ADVERSE_WEATHER,
+        _S.LOW,
         "Chuva forte e acúmulo de água na pista; velocidade reduzida a 30 km/h.",
+    ),
+    Template(
+        _C.ADVERSE_WEATHER, _S.LOW, "Granizo na região; para-brisa trincado, motorista seguro."
+    ),
+    Template(
+        _C.ADVERSE_WEATHER,
+        _S.LOW,
+        "Chuva fina e pista escorregadia; motorista reduziu a velocidade por precaução.",
+    ),
+    Template(_C.ADVERSE_WEATHER, _S.LOW, "Serração leve no amanhecer; tráfego lento, mas fluindo."),
+    Template(
+        _C.ADVERSE_WEATHER,
+        _S.LOW,
+        "Temporal com semáforos apagados no perímetro urbano; trânsito lento.",
+    ),
+    Template(
+        _C.ADVERSE_WEATHER,
+        _S.MEDIUM,
+        "Neblina intensa com visibilidade abaixo de 50 metros; motorista parado em posto.",
+    ),
+    Template(
+        _C.ADVERSE_WEATHER,
+        _S.MEDIUM,
         "Alagamento no trecho; caminhão aguardando escoamento para seguir viagem.",
-        "Rajadas de vento fortes com risco de tombamento; carga alta.",
-        "Granizo na região; para-brisa trincado, motorista seguro.",
-    ],
-    IncidentCategory.MECHANICAL_FAILURE: [
-        "Pneu estourado no eixo traseiro; aguardando borracharia.",
+    ),
+    Template(
+        _C.ADVERSE_WEATHER,
+        _S.MEDIUM,
+        "Rajadas de vento fortes com risco de tombamento; carga alta, motorista parado.",
+    ),
+    Template(
+        _C.ADVERSE_WEATHER,
+        _S.HIGH,
+        "Enxurrada arrastando lama para a pista em trecho de serra; risco de deslizamento.",
+    ),
+    # mechanical_failure
+    Template(
+        _C.MECHANICAL_FAILURE, _S.LOW, "Pneu estourado no eixo traseiro; aguardando borracharia."
+    ),
+    Template(
+        _C.MECHANICAL_FAILURE,
+        _S.LOW,
+        "Luz de injeção acesa no painel; motorista seguindo até a próxima oficina.",
+    ),
+    Template(
+        _C.MECHANICAL_FAILURE,
+        _S.LOW,
+        "Lanterna traseira queimada; troca prevista na próxima parada.",
+    ),
+    Template(
+        _C.MECHANICAL_FAILURE,
+        _S.LOW,
+        "Bateria descarregada no posto de abastecimento; aguardando carga.",
+    ),
+    Template(
+        _C.MECHANICAL_FAILURE,
+        _S.MEDIUM,
         "Superaquecimento do motor; caminhão parado no acostamento.",
-        "Falha no sistema de freios detectada no painel; veículo imobilizado.",
-        "Pane elétrica; caminhão sem iluminação, triângulo sinalizado.",
-        "Vazamento de óleo hidráulico; guincho solicitado.",
+    ),
+    Template(
+        _C.MECHANICAL_FAILURE,
+        _S.MEDIUM,
+        "Falha no sistema de freios detectada no painel; veículo imobilizado no acostamento.",
+    ),
+    Template(
+        _C.MECHANICAL_FAILURE,
+        _S.MEDIUM,
+        "Pane elétrica à noite; caminhão sem iluminação, triângulo sinalizado.",
+    ),
+    Template(_C.MECHANICAL_FAILURE, _S.MEDIUM, "Vazamento de óleo hidráulico; guincho solicitado."),
+    Template(
+        _C.MECHANICAL_FAILURE,
+        _S.MEDIUM,
         "Embreagem patinando; motorista sem conseguir subir a serra.",
-    ],
-    IncidentCategory.ROAD_BLOCKAGE: [
-        "Pista totalmente interditada por manifestação; fila de 5 km.",
-        "Deslizamento de terra bloqueando duas faixas; desvio indicado pela PRF.",
+    ),
+    Template(
+        _C.MECHANICAL_FAILURE,
+        _S.HIGH,
+        "Perda parcial de freio em descida de serra; motorista usou a área de escape.",
+    ),
+    # road_blockage
+    Template(
+        _C.ROAD_BLOCKAGE, _S.LOW, "Obras na pista com sistema pare-e-siga; espera de 40 minutos."
+    ),
+    Template(
+        _C.ROAD_BLOCKAGE,
+        _S.LOW,
+        "Queda de árvore bloqueando a faixa da direita; fluxo pela esquerda.",
+    ),
+    Template(
+        _C.ROAD_BLOCKAGE,
+        _S.LOW,
+        "Fiscalização da PRF com fila de caminhões; espera estimada de 20 minutos.",
+    ),
+    Template(
+        _C.ROAD_BLOCKAGE, _S.MEDIUM, "Pista totalmente interditada por manifestação; fila de 5 km."
+    ),
+    Template(
+        _C.ROAD_BLOCKAGE,
+        _S.MEDIUM,
         "Interdição para remoção de carreta tombada; previsão de liberação em 2 horas.",
-        "Obras na pista com sistema pare-e-siga; espera de 40 minutos.",
-        "Queda de árvore bloqueando a faixa da direita.",
-    ],
+    ),
+    Template(
+        _C.ROAD_BLOCKAGE,
+        _S.MEDIUM,
+        "Ponte com interdição parcial após vistoria; apenas uma faixa liberada.",
+    ),
+    Template(
+        _C.ROAD_BLOCKAGE,
+        _S.HIGH,
+        "Deslizamento de terra bloqueando duas faixas; desvio indicado pela PRF.",
+    ),
+    Template(
+        _C.ROAD_BLOCKAGE,
+        _S.HIGH,
+        "Incêndio em vegetação às margens com fumaça cobrindo a pista; tráfego interrompido.",
+    ),
+    Template(
+        _C.ROAD_BLOCKAGE,
+        _S.HIGH,
+        "Bloqueio total por acidente grave à frente; sem previsão de liberação.",
+    ),
+]
+TEMPLATES_BY_SEVERITY = {
+    severity: [t for t in TEMPLATES if t.severity is severity] for severity in Severity
 }
 
-# Which categories are plausible for each severity.
-CATEGORIES_BY_SEVERITY = {
-    Severity.HIGH: [
-        IncidentCategory.ACCIDENT_WITH_VICTIMS,
-        IncidentCategory.ACCIDENT_WITH_VICTIMS,
-        IncidentCategory.VEHICLE_ACCIDENT,
-        IncidentCategory.ROAD_BLOCKAGE,
-    ],
-    Severity.MEDIUM: [
-        IncidentCategory.VEHICLE_ACCIDENT,
-        IncidentCategory.MECHANICAL_FAILURE,
-        IncidentCategory.ADVERSE_WEATHER,
-        IncidentCategory.ROAD_BLOCKAGE,
-    ],
-    Severity.LOW: [
-        IncidentCategory.MECHANICAL_FAILURE,
-        IncidentCategory.MECHANICAL_FAILURE,
-        IncidentCategory.ADVERSE_WEATHER,
-        IncidentCategory.ROAD_BLOCKAGE,
-    ],
-}
 
 FIRST_NAMES = [
     "João",
@@ -217,11 +390,12 @@ def _build_incidents(
 
     incidents: list[Incident] = []
     for severity in severities:
-        category = rng.choice(CATEGORIES_BY_SEVERITY[severity])
+        template = rng.choice(TEMPLATES_BY_SEVERITY[severity])
+        category = template.category
         stretch = rng.choice(STRETCHES)
         km = Decimal(rng.randint(stretch.km_min * 10, stretch.km_max * 10)) / 10
         truck_code = f"TRK-{rng.randint(1, 5000):04d}"
-        description = rng.choice(DESCRIPTIONS[category])
+        description = template.description
         source = IncidentSource.WHATSAPP if rng.random() < WHATSAPP_RATIO else IncidentSource.API
         created_at = now - timedelta(seconds=rng.uniform(0, WINDOW.total_seconds()))
         incidents.append(
