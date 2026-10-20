@@ -32,6 +32,8 @@ class IncidentSource(StrEnum):
 class IncidentEventType(StrEnum):
     CREATED = "created"
     STATUS_CHANGED = "status_changed"
+    DELETED = "deleted"
+    UPDATED = "updated"
 
 
 def string_enum(enum_cls: type[StrEnum], name: str) -> Enum:

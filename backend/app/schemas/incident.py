@@ -41,7 +41,7 @@ class IncidentOut(BaseModel):
     severity: Severity
     status: IncidentStatus
     truck_code: str
-    driver_name: str
+    driver_name: OptionalText
     highway: OptionalText
     km: float | None
     location_note: OptionalText
@@ -76,7 +76,7 @@ class IncidentEventOut(BaseModel):
     id: uuid.UUID
     event_type: IncidentEventType
     from_status: IncidentStatus | None
-    to_status: IncidentStatus
+    to_status: IncidentStatus | None
     analyst: AnalystRef | None
     created_at: datetime
 

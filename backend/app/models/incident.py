@@ -32,7 +32,7 @@ class Incident(Base):
         index=True,
     )
     truck_code: Mapped[str] = mapped_column(String(20))
-    driver_name: Mapped[str] = mapped_column(String(120))
+    driver_name: Mapped[str | None] = mapped_column(String(120))
     # Location is optional: WhatsApp reports must never be rejected for lacking it.
     highway: Mapped[str | None] = mapped_column(String(10))
     km: Mapped[Decimal | None] = mapped_column(Numeric(7, 1))
