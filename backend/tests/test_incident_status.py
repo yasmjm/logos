@@ -210,7 +210,10 @@ def test_inconclusive_requires_note(
 
     assert response.status_code == 422
     assert "field 'note'" in response.json()["detail"]
-    assert "at least 10 characters" in response.json()["detail"]
+    detail = response.json()["detail"]
+    assert "at least 10 characters" in detail
+    assert "Value error" not in detail
+    assert "Invalid field 'note': A note of at least 10 characters" in detail
     assert _reload(db, incident).status is S.INVESTIGATING
 
 
