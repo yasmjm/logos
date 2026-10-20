@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import get_db
+from app.core.rate_limit import ALL_LIMITERS
 from app.main import app
 from app.models import Analyst, Base
 from tests.factories import auth_headers, make_analyst
@@ -82,3 +83,13 @@ def client(anon_client: TestClient, current_analyst: Analyst) -> TestClient:
     """Client logged in as current_analyst (pass headers=auth_headers(x) to act as x)."""
     anon_client.headers.update(auth_headers(current_analyst))
     return anon_client
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limits() -> Generator[None, None, None]:
+    """Rate limits are process-wide state; start every test from zero."""
+    for limiter in ALL_LIMITERS:
+        limiter.reset()
+    yield
+    for limiter in ALL_LIMITERS:
+        limiter.reset()

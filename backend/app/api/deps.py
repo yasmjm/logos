@@ -1,12 +1,14 @@
+import hashlib
 import secrets
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Security, status
+from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
+from app.core.rate_limit import INGEST_LIMITER, LOGIN_LIMITER, RateLimiter
 from app.core.tokens import ExpiredToken, InvalidToken, decode_access_token
 from app.models import Analyst
 
@@ -66,3 +68,24 @@ def get_current_analyst(
 
 
 CurrentAnalyst = Annotated[Analyst, Depends(get_current_analyst)]
+
+
+def _enforce(limiter: RateLimiter, key: str) -> None:
+    retry_after = limiter.hit(key)
+    if retry_after is not None:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            f"Too many requests. Try again in {retry_after} seconds.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+
+def limit_login_attempts(request: Request) -> None:
+    # Per client IP. Behind a proxy this needs uvicorn --proxy-headers (docs/adr/0001).
+    client_ip = request.client.host if request.client else "unknown"
+    _enforce(LOGIN_LIMITER, f"login:{client_ip}")
+
+
+def limit_ingestion(api_key: Annotated[str, Depends(require_ingest_key)]) -> None:
+    # Per key, counted only after the key is validated; never keep the raw key around.
+    _enforce(INGEST_LIMITER, hashlib.sha256(api_key.encode()).hexdigest())

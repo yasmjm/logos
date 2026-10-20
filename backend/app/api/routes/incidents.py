@@ -3,7 +3,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
-from app.api.deps import CurrentAnalyst, DbSession, require_ingest_key
+from app.api.deps import CurrentAnalyst, DbSession, limit_ingestion
 from app.api.responses import problem_responses
 from app.core.errors import ProblemException
 from app.models import IncidentCategory, IncidentStatus, Severity
@@ -74,9 +74,10 @@ def _detail(db: DbSession, incident_id: uuid.UUID) -> IncidentDetail:
     "",
     status_code=status.HTTP_201_CREATED,
     response_model=IncidentDetail,
-    responses=problem_responses(422),
-    dependencies=[Depends(require_ingest_key)],
+    responses=problem_responses(422, 429),
+    dependencies=[Depends(limit_ingestion)],  # validates X-API-Key, then rate limits
     summary="Ingest an incident (trucks and integrations)",
+    description="Authenticated with X-API-Key. Limited to 120 requests per minute per key.",
 )
 def create_incident(payload: IncidentCreate, db: DbSession, response: Response) -> IncidentDetail:
     incident_id = incident_service.create_incident(db, payload)

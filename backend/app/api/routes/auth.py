@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 
-from app.api.deps import AppSettings, CurrentAnalyst, DbSession
+from app.api.deps import AppSettings, CurrentAnalyst, DbSession, limit_login_attempts
 from app.api.responses import problem_responses
 from app.core.tokens import create_access_token
 from app.schemas.auth import AnalystOut, TokenResponse
@@ -15,8 +15,10 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.post(
     "/login",
     response_model=TokenResponse,
-    responses=problem_responses(401, 422),
+    responses=problem_responses(401, 422, 429),
+    dependencies=[Depends(limit_login_attempts)],
     summary="Log in with username and password (OAuth2 password flow)",
+    description="Limited to 5 attempts per minute per IP.",
 )
 def login(
     form: Annotated[OAuth2PasswordRequestForm, Depends()], db: DbSession, settings: AppSettings
