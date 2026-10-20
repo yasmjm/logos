@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from app.api.deps import CurrentAnalyst, DbSession, limit_ingestion
 from app.api.responses import problem_responses
 from app.core.errors import ProblemException
+from app.core.retry import read_with_retry
 from app.models import IncidentCategory, IncidentStatus, Severity
 from app.schemas.incident import (
     AnalystRef,
@@ -42,7 +43,9 @@ def list_incidents(
         statuses=status_,
         assigned_to=analyst.id if assigned_to == "me" else None,
     )
-    rows, total = incident_service.list_incidents(db, filters, limit, offset)
+    rows, total = read_with_retry(
+        db, lambda: incident_service.list_incidents(db, filters, limit, offset)
+    )
     return IncidentListResponse(
         items=[IncidentOut.from_row(incident, score) for incident, score in rows],
         total=total,
@@ -54,7 +57,9 @@ def list_incidents(
 # Declared before /{incident_id} so "summary" is not parsed as an id.
 @router.get("/summary", response_model=IncidentSummary)
 def incidents_summary(db: DbSession, _: CurrentAnalyst) -> IncidentSummary:
-    total, by_severity, by_category = incident_service.get_active_summary(db)
+    total, by_severity, by_category = read_with_retry(
+        db, lambda: incident_service.get_active_summary(db)
+    )
     return IncidentSummary(total_active=total, by_severity=by_severity, by_category=by_category)
 
 
@@ -64,7 +69,7 @@ def get_incident(incident_id: uuid.UUID, db: DbSession, _: CurrentAnalyst) -> In
 
 
 def _detail(db: DbSession, incident_id: uuid.UUID) -> IncidentDetail:
-    found = incident_service.get_incident(db, incident_id)
+    found = read_with_retry(db, lambda: incident_service.get_incident(db, incident_id))
     if found is None:
         raise _not_found(incident_id)
     return IncidentDetail.from_parts(*found)
@@ -102,7 +107,7 @@ def _not_found(incident_id: uuid.UUID) -> HTTPException:
 
 
 def _conflict(db: DbSession, incident_id: uuid.UUID, sent_version: int) -> ProblemException:
-    found = incident_service.get_incident(db, incident_id)
+    found = read_with_retry(db, lambda: incident_service.get_incident(db, incident_id))
     if found is None:  # deleted in the meantime
         return ProblemException(status.HTTP_404_NOT_FOUND, f"Incident {incident_id} not found.")
     current = IncidentDetail.from_parts(*found)

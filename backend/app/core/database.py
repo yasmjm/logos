@@ -1,9 +1,10 @@
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 
 from sqlalchemy import Engine, MetaData, create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.core.config import Settings, get_settings
+from app.core.retry import retry_transient
 
 
 def build_engine(settings: Settings) -> Engine:
@@ -38,9 +39,19 @@ class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
-def get_db() -> Generator[Session, None, None]:
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+def session_dependency(
+    session_factory: Callable[[], Session],
+) -> Callable[[], Generator[Session, None, None]]:
+    def get_db() -> Generator[Session, None, None]:
+        db = session_factory()
+        try:
+            # Check out a connection up front, retrying transient failures (e.g. a restart).
+            retry_transient(db.connection, before_retry=db.rollback)
+            yield db
+        finally:
+            db.close()
+
+    return get_db
+
+
+get_db = session_dependency(SessionLocal)

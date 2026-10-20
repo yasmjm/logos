@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.core.rate_limit import INGEST_LIMITER, LOGIN_LIMITER, RateLimiter
+from app.core.retry import read_with_retry
 from app.core.tokens import ExpiredToken, InvalidToken, decode_access_token
 from app.models import Analyst
 
@@ -61,7 +62,7 @@ def get_current_analyst(
     except InvalidToken:
         raise _unauthorized("Invalid access token.") from None
 
-    analyst = db.get(Analyst, analyst_id)
+    analyst = read_with_retry(db, lambda: db.get(Analyst, analyst_id))
     if analyst is None:  # e.g. the account was removed after the token was issued
         raise _unauthorized("Invalid access token.")
     return analyst

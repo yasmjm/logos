@@ -10,6 +10,7 @@ from typing import Any
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.retry import read_with_retry
 from app.models import Incident, IncidentEvent, IncidentEventType, IncidentStatus
 
 S = IncidentStatus
@@ -100,8 +101,11 @@ def change_status(
 
     if from_status is None:
         # Nothing was written or locked; a fresh read explains why.
-        _raise_why_not_changed(
-            db, incident_id, target=target, version=version, analyst_id=analyst_id
+        read_with_retry(
+            db,
+            lambda: _raise_why_not_changed(
+                db, incident_id, target=target, version=version, analyst_id=analyst_id
+            ),
         )
 
     db.add(
