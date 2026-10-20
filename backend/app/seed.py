@@ -1,9 +1,15 @@
-"""Seed the local database with analysts and realistic incidents.
+"""Demo data: analysts and realistic incidents, reused by the CLI and by /demo.
 
-Usage: uv run python -m app.seed
+CLI (local development only): uv run python -m app.seed
 
-Idempotent: truncates analysts, incidents and incident_events, then recreates
-everything. Timestamps are relative to the moment of execution (last 6 hours).
+The CLI WIPES incidents and incident_events with TRUNCATE, then recreates the
+incidents with timestamps relative to now (last 6 hours). This deletes audit
+history on purpose and must never run against a shared or production database.
+Analysts are kept with the same ids (created only if missing), so tokens issued
+before the seed keep working.
+
+The API never deletes history: POST /demo/reset soft-deletes instead
+(see app/services/demo.py).
 """
 
 import random
@@ -11,8 +17,9 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
@@ -380,42 +387,52 @@ def _whatsapp_message(
     return f"{opener} aqui é o {truck_code}{where}. {description.lower()}"
 
 
-def _build_incidents(
+def random_incident_fields(rng: random.Random, severity: Severity | None = None) -> dict[str, Any]:
+    """One realistic incident report: a template with coherent severity, a real stretch
+    of highway, and sometimes a WhatsApp message. Severity follows the seed's mix when
+    not given (~15% high, ~45% medium, ~40% low)."""
+    if severity is None:
+        severity = rng.choices(list(SEVERITY_COUNTS), weights=list(SEVERITY_COUNTS.values()))[0]
+    template = rng.choice(TEMPLATES_BY_SEVERITY[severity])
+    stretch = rng.choice(STRETCHES)
+    km = Decimal(rng.randint(stretch.km_min * 10, stretch.km_max * 10)) / 10
+    truck_code = f"TRK-{rng.randint(1, 5000):04d}"
+    source = IncidentSource.WHATSAPP if rng.random() < WHATSAPP_RATIO else IncidentSource.API
+    return {
+        "description": template.description,
+        "category": template.category,
+        "severity": severity,
+        "truck_code": truck_code,
+        "driver_name": f"{rng.choice(FIRST_NAMES)} {rng.choice(LAST_NAMES)}",
+        "highway": stretch.highway,
+        "km": km,
+        "location_note": rng.choice(stretch.places),
+        "source": source,
+        "raw_message": (
+            _whatsapp_message(rng, truck_code, f"{stretch.highway} km {km}", template.description)
+            if source is IncidentSource.WHATSAPP
+            else None
+        ),
+    }
+
+
+def build_demo_incidents(
     rng: random.Random,
     now: datetime,
     analysts: list[Analyst],
 ) -> tuple[list[Incident], list[IncidentEvent]]:
+    """The 120-incident demo set, with status history coherent with the timestamps."""
     severities = [sev for sev, count in SEVERITY_COUNTS.items() for _ in range(count)]
     rng.shuffle(severities)
 
     incidents: list[Incident] = []
     for severity in severities:
-        template = rng.choice(TEMPLATES_BY_SEVERITY[severity])
-        category = template.category
-        stretch = rng.choice(STRETCHES)
-        km = Decimal(rng.randint(stretch.km_min * 10, stretch.km_max * 10)) / 10
-        truck_code = f"TRK-{rng.randint(1, 5000):04d}"
-        description = template.description
-        source = IncidentSource.WHATSAPP if rng.random() < WHATSAPP_RATIO else IncidentSource.API
         created_at = now - timedelta(seconds=rng.uniform(0, WINDOW.total_seconds()))
         incidents.append(
             Incident(
                 id=uuid.uuid4(),
-                description=description,
-                category=category,
-                severity=severity,
+                **random_incident_fields(rng, severity),
                 status=IncidentStatus.OPEN,
-                truck_code=truck_code,
-                driver_name=f"{rng.choice(FIRST_NAMES)} {rng.choice(LAST_NAMES)}",
-                highway=stretch.highway,
-                km=km,
-                location_note=rng.choice(stretch.places),
-                source=source,
-                raw_message=(
-                    _whatsapp_message(rng, truck_code, f"{stretch.highway} km {km}", description)
-                    if source is IncidentSource.WHATSAPP
-                    else None
-                ),
                 version=1,
                 created_at=created_at,
                 updated_at=created_at,
@@ -501,30 +518,42 @@ def _build_incidents(
     return incidents, events
 
 
-def seed(db: Session) -> None:
-    rng = random.Random(42)
-    now = datetime.now(UTC)
-
-    # Listing all three tables in one TRUNCATE satisfies the RESTRICT foreign keys.
-    db.execute(text("TRUNCATE incident_events, incidents, analysts"))
-
-    analysts = [
-        Analyst(
-            id=uuid.uuid4(),
-            name=name,
-            username=username,
-            password_hash=hash_password(DEFAULT_PASSWORD),
-            created_at=now - WINDOW,
-        )
-        for name, username in ANALYSTS
-    ]
-    db.add_all(analysts)
+def ensure_analysts(db: Session) -> list[Analyst]:
+    """Create the demo analysts only if missing; existing ones keep their ids."""
+    existing = {
+        a.username: a
+        for a in db.scalars(select(Analyst).where(Analyst.username.in_([u for _, u in ANALYSTS])))
+    }
+    analysts = []
+    for name, username in ANALYSTS:
+        analyst = existing.get(username)
+        if analyst is None:
+            analyst = Analyst(
+                id=uuid.uuid4(),
+                name=name,
+                username=username,
+                password_hash=hash_password(DEFAULT_PASSWORD),
+            )
+            db.add(analyst)
+        analysts.append(analyst)
     db.flush()
+    return analysts
 
-    incidents, events = _build_incidents(rng, now, analysts)
+
+def add_demo_incidents(db: Session, analysts: list[Analyst], now: datetime) -> int:
+    incidents, events = build_demo_incidents(random.Random(42), now, analysts)
     db.add_all(incidents)
     db.flush()
     db.add_all(events)
+    db.flush()
+    return len(incidents)
+
+
+def seed(db: Session) -> None:
+    """Local development only: wipes incidents and their history (see module docstring)."""
+    # Both tables in one TRUNCATE satisfies the RESTRICT foreign key between them.
+    db.execute(text("TRUNCATE incident_events, incidents"))
+    add_demo_incidents(db, ensure_analysts(db), datetime.now(UTC))
 
 
 def main() -> None:
