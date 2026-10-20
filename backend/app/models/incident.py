@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, Numeric, String, Text, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -18,6 +18,16 @@ from app.models.enums import (
 
 class Incident(Base):
     __tablename__ = "incidents"
+    __table_args__ = (
+        # Every read filters deleted_at IS NULL; soft-deleted rows (e.g. demo resets)
+        # pile up, so a partial index keeps the visible set small and fast.
+        Index(
+            "ix_incidents_not_deleted_status_created_at",
+            "status",
+            "created_at",
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     description: Mapped[str] = mapped_column(Text)

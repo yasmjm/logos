@@ -16,3 +16,16 @@ def test_engine_applies_pool_and_timeouts() -> None:
             assert conn.execute(text("SHOW statement_timeout")).scalar() == "1234ms"
     finally:
         engine.dispose()
+
+
+def test_visible_incidents_have_a_partial_index(db_engine) -> None:
+    with db_engine.connect() as conn:
+        definition = conn.execute(
+            text(
+                "SELECT indexdef FROM pg_indexes "
+                "WHERE indexname = 'ix_incidents_not_deleted_status_created_at'"
+            )
+        ).scalar_one()
+
+    assert "(status, created_at)" in definition
+    assert "WHERE (deleted_at IS NULL)" in definition
