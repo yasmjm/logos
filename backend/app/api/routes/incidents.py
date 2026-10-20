@@ -4,6 +4,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.api.deps import AnalystIdHeader, DbSession
+from app.api.responses import problem_responses
 from app.models import IncidentCategory, IncidentStatus, Severity
 from app.schemas.incident import (
     IncidentDetail,
@@ -17,7 +18,7 @@ from app.services.incidents import IncidentFilters
 router = APIRouter(prefix="/incidents", tags=["incidents"])
 
 
-@router.get("", response_model=IncidentListResponse)
+@router.get("", response_model=IncidentListResponse, responses=problem_responses(422))
 def list_incidents(
     db: DbSession,
     analyst_id: AnalystIdHeader = None,
@@ -56,7 +57,7 @@ def incidents_summary(db: DbSession) -> IncidentSummary:
     return IncidentSummary(total_active=total, by_severity=by_severity, by_category=by_category)
 
 
-@router.get("/{incident_id}", response_model=IncidentDetail)
+@router.get("/{incident_id}", response_model=IncidentDetail, responses=problem_responses(404, 422))
 def get_incident(incident_id: uuid.UUID, db: DbSession) -> IncidentDetail:
     found = incident_service.get_incident(db, incident_id)
     if found is None:
