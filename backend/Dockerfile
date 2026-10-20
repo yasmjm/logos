@@ -39,8 +39,8 @@ ENV PATH="/app/.venv/bin:$PATH" \
 USER app
 EXPOSE 8000
 
-# --proxy-headers with every forwarder trusted: on Render the container is only
-# reachable through the platform's proxy, so X-Forwarded-For always comes from it
-# and request.client.host is the real client IP (rate limit per IP, ADR 0001).
+# No --proxy-headers: with --forwarded-allow-ips='*' uvicorn takes the LEFTMOST
+# X-Forwarded-For entry, which the client can forge. The app reads the entry added by
+# the platform proxy instead (TRUSTED_PROXY_HOPS, app/core/client_ip.py, ADR 0001).
 # Access logs come from our JSON middleware, so uvicorn's own are off.
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port \"$PORT\" --proxy-headers --forwarded-allow-ips='*' --no-access-log"]
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port \"$PORT\" --no-proxy-headers --no-access-log"]

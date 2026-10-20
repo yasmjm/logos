@@ -6,6 +6,7 @@ from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
+from app.core.client_ip import client_ip
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.core.rate_limit import (
@@ -87,10 +88,9 @@ def _enforce(limiter: RateLimiter, key: str) -> None:
         )
 
 
-def limit_login_attempts(request: Request) -> None:
-    # Per client IP. Behind a proxy this needs uvicorn --proxy-headers (docs/adr/0001).
-    client_ip = request.client.host if request.client else "unknown"
-    _enforce(LOGIN_LIMITER, f"login:{client_ip}")
+def limit_login_attempts(request: Request, settings: AppSettings) -> None:
+    # Per client IP; behind the platform proxy, see app/core/client_ip.py (ADR 0001).
+    _enforce(LOGIN_LIMITER, f"login:{client_ip(request, settings.trusted_proxy_hops)}")
 
 
 def limit_ingestion(api_key: Annotated[str, Depends(require_ingest_key)]) -> None:

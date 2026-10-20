@@ -2,7 +2,7 @@ import logging
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import SecretStr, ValidationError, field_validator, model_validator
+from pydantic import Field, SecretStr, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     chaos_enabled: bool = False
     # Evaluator tools: POST /demo/reset and /demo/simulate (otherwise 404).
     demo_mode: bool = False
+    # Reverse proxies in front of the app that append to X-Forwarded-For (Render: 1).
+    # 0 = use the TCP peer address (local development, tests).
+    trusted_proxy_hops: int = Field(default=0, ge=0, le=5)
     # Comma-separated origins allowed by CORS.
     frontend_origins: str = "http://localhost:5173"
 
