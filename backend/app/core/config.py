@@ -37,6 +37,16 @@ class Settings(BaseSettings):
     # Comma-separated origins allowed by CORS.
     frontend_origins: str = "http://localhost:5173"
 
+    @field_validator("database_url")
+    @classmethod
+    def _use_psycopg_driver(cls, url: str) -> str:
+        # Neon/Render hand out "postgresql://" or "postgres://"; SQLAlchemy would pick
+        # psycopg2 for those. Query parameters (sslmode=require, ...) are kept as is.
+        for scheme in ("postgresql://", "postgres://"):
+            if url.startswith(scheme):
+                return "postgresql+psycopg://" + url.removeprefix(scheme)
+        return url
+
     @field_validator("ingest_api_key", "jwt_secret", mode="before")
     @classmethod
     def _blank_secret_is_unset(cls, value: object) -> object:
