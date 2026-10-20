@@ -2,7 +2,7 @@ import logging
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import SecretStr, field_validator, model_validator
+from pydantic import SecretStr, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -86,6 +86,19 @@ def warn_if_insecure(settings: Settings) -> None:
         )
 
 
+class ConfigurationError(RuntimeError):
+    """Invalid settings. The message never includes values (they may be secrets)."""
+
+
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    try:
+        return Settings()
+    except ValidationError as exc:
+        problems = "; ".join(
+            f"{'.'.join(map(str, e['loc'])) or 'settings'}: "
+            + e["msg"].removeprefix("Value error, ")
+            for e in exc.errors()
+        )
+        # "from None": Pydantic's own message echoes the inputs (e.g. DATABASE_URL).
+        raise ConfigurationError(f"Invalid configuration: {problems}") from None
