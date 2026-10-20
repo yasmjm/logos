@@ -44,4 +44,6 @@ class RateLimiter:
 
 LOGIN_LIMITER = RateLimiter(limit=5, window_seconds=60)  # brute force, per IP
 INGEST_LIMITER = RateLimiter(limit=120, window_seconds=60)  # per API key
-ALL_LIMITERS = (LOGIN_LIMITER, INGEST_LIMITER)
+DEMO_RESET_LIMITER = RateLimiter(limit=1, window_seconds=60)  # global
+DEMO_SIMULATE_LIMITER = RateLimiter(limit=10, window_seconds=60)  # per analyst
+ALL_LIMITERS = (LOGIN_LIMITER, INGEST_LIMITER, DEMO_RESET_LIMITER, DEMO_SIMULATE_LIMITER)

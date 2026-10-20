@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     jwt_expires_minutes: int = 8 * 60  # one shift
     # Resilience demo: enables /chaos (latency and simulated failures on /incidents).
     chaos_enabled: bool = False
+    # Evaluator tools: POST /demo/reset and /demo/simulate (otherwise 404).
+    demo_mode: bool = False
     # Comma-separated origins allowed by CORS.
     frontend_origins: str = "http://localhost:5173"
 

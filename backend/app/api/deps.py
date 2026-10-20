@@ -8,7 +8,13 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
-from app.core.rate_limit import INGEST_LIMITER, LOGIN_LIMITER, RateLimiter
+from app.core.rate_limit import (
+    DEMO_RESET_LIMITER,
+    DEMO_SIMULATE_LIMITER,
+    INGEST_LIMITER,
+    LOGIN_LIMITER,
+    RateLimiter,
+)
 from app.core.retry import read_with_retry
 from app.core.tokens import ExpiredToken, InvalidToken, decode_access_token
 from app.models import Analyst
@@ -90,3 +96,19 @@ def limit_login_attempts(request: Request) -> None:
 def limit_ingestion(api_key: Annotated[str, Depends(require_ingest_key)]) -> None:
     # Per key, counted only after the key is validated; never keep the raw key around.
     _enforce(INGEST_LIMITER, hashlib.sha256(api_key.encode()).hexdigest())
+
+
+def limit_demo_reset(analyst: CurrentAnalyst) -> Analyst:
+    # One reset per minute for everyone: it rewrites the whole demo dataset.
+    _enforce(DEMO_RESET_LIMITER, "demo-reset")
+    return analyst
+
+
+def limit_demo_simulate(analyst: CurrentAnalyst) -> Analyst:
+    _enforce(DEMO_SIMULATE_LIMITER, f"demo-simulate:{analyst.id}")
+    return analyst
+
+
+# Authenticated first, so anonymous calls never consume the budget.
+DemoResetAnalyst = Annotated[Analyst, Depends(limit_demo_reset)]
+DemoSimulateAnalyst = Annotated[Analyst, Depends(limit_demo_simulate)]
