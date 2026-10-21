@@ -1,0 +1,261 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/*
+ * Logos design tokens: "control room".
+ * Dark theme is the default; light theme is complete. The theme lives in
+ * <html data-theme="dark|light"> (set before paint by index.html).
+ *
+ * Naming: our tokens (--bg, --surface-*, --text*, --accent, --sev-*, --status-*)
+ * are the source of truth. shadcn's variables (--background, --primary, ...) are
+ * mapped onto them at the bottom, so components follow the same palette.
+ */
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* --- Typography and spacing (theme independent) ------------------------------- */
+:root {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  /* Short, dense scale (px): 12 / 13 / 14 / 16 / 20 */
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-lg: 1rem;
+  --text-xl: 1.25rem;
+  --leading-tight: 1.25;
+  --leading-normal: 1.45;
+
+  /* 4px base spacing (matches Tailwind's --spacing) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --row-height: 36px; /* incident queue rows */
+
+  --radius: 6px;
+  --focus-ring-width: 2px;
+}
+
+/* --- Dark (default) ------------------------------------------------------------- */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Layers: background < surface-1 (panels) < surface-2 (inputs, hover) < surface-3 */
+  --bg: oklch(0.165 0.008 255);
+  --surface-1: oklch(0.2 0.009 255);
+  --surface-2: oklch(0.235 0.01 255);
+  --surface-3: oklch(0.275 0.011 255);
+  --border: oklch(0.33 0.012 255);
+  --border-strong: oklch(0.45 0.014 255);
+
+  --text: oklch(0.965 0.003 255); /* AAA on --bg */
+  --text-muted: oklch(0.76 0.01 255); /* AA on every surface */
+  --text-subtle: oklch(0.66 0.012 255); /* AA for >= 14px on --bg */
+
+  /* Accent (buttons, links, focus): neutral on purpose, so it never competes with
+     severity red/amber/blue. Inverted: light ink on the dark UI. */
+  --accent: oklch(0.93 0.004 255);
+  --accent-hover: oklch(0.86 0.006 255);
+  --accent-foreground: oklch(0.17 0.008 255);
+  --focus-ring: oklch(0.93 0.004 255);
+
+  /* Severity: always color + icon + label (never color alone) */
+  --sev-high: oklch(0.72 0.19 25);
+  --sev-high-bg: oklch(0.72 0.19 25 / 0.14);
+  --sev-high-border: oklch(0.72 0.19 25 / 0.5);
+  --sev-medium: oklch(0.82 0.15 78);
+  --sev-medium-bg: oklch(0.82 0.15 78 / 0.13);
+  --sev-medium-border: oklch(0.82 0.15 78 / 0.45);
+  --sev-low: oklch(0.76 0.07 240);
+  --sev-low-bg: oklch(0.76 0.07 240 / 0.12);
+  --sev-low-border: oklch(0.76 0.07 240 / 0.4);
+
+  /* Status: desaturated, so severity stays the loudest signal */
+  --status-open: oklch(0.86 0.01 255);
+  --status-investigating: oklch(0.8 0.08 195);
+  --status-closed: oklch(0.78 0.11 155);
+  --status-inconclusive: oklch(0.74 0.05 300);
+
+  /* Incident already owned by an analyst: quieter row + owner's initial */
+  --assigned-row-bg: oklch(0.185 0.008 255);
+  --assigned-row-text: var(--text-muted);
+  --assigned-row-opacity: 0.85;
+  --assignee-bg: var(--surface-3);
+  --assignee-text: var(--text);
+  --assignee-border: var(--border-strong);
+
+  --danger: var(--sev-high); /* destructive actions and form errors */
+  --overlay: oklch(0 0 0 / 0.55);
+}
+
+/* --- Light ---------------------------------------------------------------------- */
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: oklch(0.975 0.003 255);
+  --surface-1: oklch(1 0 0);
+  --surface-2: oklch(0.955 0.004 255);
+  --surface-3: oklch(0.92 0.006 255);
+  --border: oklch(0.87 0.007 255);
+  --border-strong: oklch(0.74 0.01 255);
+
+  --text: oklch(0.2 0.01 255);
+  --text-muted: oklch(0.43 0.012 255);
+  --text-subtle: oklch(0.52 0.012 255);
+
+  /* Neutral accent: dark ink on the light UI */
+  --accent: oklch(0.24 0.01 255);
+  --accent-hover: oklch(0.32 0.012 255);
+  --accent-foreground: oklch(0.98 0.002 255);
+  --focus-ring: oklch(0.24 0.01 255);
+
+  /* Darker hues so text and icons keep AA contrast on white */
+  --sev-high: oklch(0.53 0.2 27);
+  --sev-high-bg: oklch(0.53 0.2 27 / 0.09);
+  --sev-high-border: oklch(0.53 0.2 27 / 0.4);
+  --sev-medium: oklch(0.55 0.13 62);
+  --sev-medium-bg: oklch(0.7 0.15 75 / 0.14);
+  --sev-medium-border: oklch(0.6 0.14 70 / 0.45);
+  --sev-low: oklch(0.47 0.08 245);
+  --sev-low-bg: oklch(0.47 0.08 245 / 0.08);
+  --sev-low-border: oklch(0.47 0.08 245 / 0.35);
+
+  --status-open: oklch(0.35 0.012 255);
+  --status-investigating: oklch(0.48 0.09 200);
+  --status-closed: oklch(0.47 0.12 155);
+  --status-inconclusive: oklch(0.48 0.06 300);
+
+  --assigned-row-bg: oklch(0.985 0.002 255);
+  --assigned-row-text: var(--text-muted);
+  --assigned-row-opacity: 0.9;
+  --assignee-bg: var(--surface-3);
+  --assignee-text: var(--text);
+  --assignee-border: var(--border-strong);
+
+  --danger: var(--sev-high);
+  --overlay: oklch(0.2 0.01 255 / 0.35);
+}
+
+/* --- Tailwind theme: expose tokens as utilities ---------------------------------- */
+@theme inline {
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-sans);
+
+  --color-bg: var(--bg);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border-strong: var(--border-strong);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-subtle: var(--text-subtle);
+  --color-danger: var(--danger);
+
+  --color-sev-high: var(--sev-high);
+  --color-sev-high-bg: var(--sev-high-bg);
+  --color-sev-high-border: var(--sev-high-border);
+  --color-sev-medium: var(--sev-medium);
+  --color-sev-medium-bg: var(--sev-medium-bg);
+  --color-sev-medium-border: var(--sev-medium-border);
+  --color-sev-low: var(--sev-low);
+  --color-sev-low-bg: var(--sev-low-bg);
+  --color-sev-low-border: var(--sev-low-border);
+
+  --color-status-open: var(--status-open);
+  --color-status-investigating: var(--status-investigating);
+  --color-status-closed: var(--status-closed);
+  --color-status-inconclusive: var(--status-inconclusive);
+
+  --color-assigned-row: var(--assigned-row-bg);
+  --color-assignee: var(--assignee-bg);
+  --color-assignee-foreground: var(--assignee-text);
+  --color-assignee-border: var(--assignee-border);
+
+  /* shadcn semantics mapped onto our tokens */
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  --color-card: var(--surface-1);
+  --color-card-foreground: var(--text);
+  --color-popover: var(--surface-2);
+  --color-popover-foreground: var(--text);
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--accent-foreground);
+  --color-secondary: var(--surface-2);
+  --color-secondary-foreground: var(--text);
+  --color-muted: var(--surface-2);
+  --color-muted-foreground: var(--text-muted);
+  /* shadcn's "accent" is a hover background, not our --accent */
+  --color-accent: var(--surface-3);
+  --color-accent-foreground: var(--text);
+  --color-destructive: var(--danger);
+  --color-border: var(--border);
+  --color-input: var(--border-strong);
+  --color-ring: var(--focus-ring);
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    font-family: var(--font-sans);
+    font-size: 100%;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-size: var(--text-base);
+    line-height: var(--leading-normal);
+    /* Numbers line up in tables, timers and counters */
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "cv11", "ss01"; /* Inter: straight 1, open digits */
+  }
+  code,
+  kbd,
+  .font-mono {
+    font-family: var(--font-mono);
+    font-variant-ligatures: none;
+  }
+  :focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+  a {
+    @apply underline underline-offset-2 hover:no-underline;
+  }
+}
+
+/* Incident already owned by someone: less emphasis in the queue. */
+@layer components {
+  .incident-assigned {
+    background-color: var(--assigned-row-bg);
+    color: var(--assigned-row-text);
+    opacity: var(--assigned-row-opacity);
+  }
+  .incident-assigned:hover,
+  .incident-assigned:focus-within {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
