@@ -51,6 +51,10 @@ HIGH_PLAN = {"open_breached": 3, "investigating": 9, "closed": 4, "inconclusive"
 OPEN_BREACHED_OTHERS = 4  # medium/low open incidents already past their SLA
 FRESH_MAX_SLA_SHARE = 0.8  # open within the SLA: up to 80% of it elapsed
 REACTION_MINUTES = (1, 12)  # time to be assumed (drives the MTTA)
+# Accidents with victims always top the queue, so the demo keeps only a few active ones:
+# one nobody took yet (escalated) and two being handled. None of the others has victims,
+# so the rest of the queue shows the business-impact ranking.
+VICTIMS_PLAN = {"open_breached": 1, "investigating": 2}
 WHATSAPP_RATIO = 0.3
 # WhatsApp reports where the driver did not say where they are.
 WHATSAPP_WITHOUT_LOCATION_COUNT = 5
@@ -444,14 +448,23 @@ def random_incident_fields(
     rng: random.Random,
     severity: Severity | None = None,
     truck_codes: list[str] | None = None,
+    victims: bool | None = None,
 ) -> dict[str, Any]:
     """One realistic incident report: a template with coherent severity, a real stretch
     of highway, and sometimes a WhatsApp message. Severity follows the seed's mix when
     not given (~15% high, ~45% medium, ~40% low). With `truck_codes`, the truck comes
-    from the fleet, except a few unknown ones."""
+    from the fleet, except a few unknown ones. `victims` forces (True) or excludes (False)
+    accidents with victims; None leaves it to chance."""
     if severity is None:
         severity = rng.choices(list(SEVERITY_COUNTS), weights=list(SEVERITY_COUNTS.values()))[0]
-    template = rng.choice(TEMPLATES_BY_SEVERITY[severity])
+    templates = TEMPLATES_BY_SEVERITY[severity]
+    if victims is not None:
+        templates = [
+            t
+            for t in templates
+            if (t.category is IncidentCategory.ACCIDENT_WITH_VICTIMS) == victims
+        ]
+    template = rng.choice(templates)
     stretch = rng.choice(STRETCHES)
     km = Decimal(rng.randint(stretch.km_min * 10, stretch.km_max * 10)) / 10
     if truck_codes and rng.random() >= UNKNOWN_TRUCK_RATIO:
@@ -520,10 +533,18 @@ def build_demo_incidents(
     severities = [sev for sev, count in SEVERITY_COUNTS.items() for _ in range(count)]
     rng.shuffle(severities)
     plan = _assign_statuses(rng, severities)
+    with_victims: set[int] = set()
+    for kind, count in VICTIMS_PLAN.items():
+        slots = [
+            i
+            for i, (sev, k) in enumerate(zip(severities, plan, strict=True))
+            if sev is Severity.HIGH and k == kind
+        ]
+        with_victims.update(rng.sample(slots, count))
 
     incidents: list[Incident] = []
     events: list[IncidentEvent] = []
-    for severity, kind in zip(severities, plan, strict=True):
+    for index, (severity, kind) in enumerate(zip(severities, plan, strict=True)):
         sla = SLA_MINUTES[severity]
         if kind == "open_fresh":  # within the SLA, some already amber (near it)
             created_at = now - _minutes(rng, 0.2, sla * FRESH_MAX_SLA_SHARE)
@@ -536,7 +557,9 @@ def build_demo_incidents(
         else:  # closed / inconclusive, spread over the window
             created_at = now - _minutes(rng, 45, WINDOW.total_seconds() / 60)
 
-        fields = random_incident_fields(rng, severity, list(fleet) if fleet else None)
+        fields = random_incident_fields(
+            rng, severity, list(fleet) if fleet else None, victims=index in with_victims
+        )
         incident = Incident(
             id=uuid.uuid4(),
             **fields,
