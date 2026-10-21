@@ -27,5 +27,19 @@ sem prioridade e sem dono definido.
 - Antes de implementar algo não trivial, explicar a abordagem em 3 a 5 linhas e esperar o ok.
 - Não adicionar dependências sem justificar.
 
+## Convenções do frontend
+- pnpm (versão fixada em `packageManager`). Antes de commitar: `pnpm lint`, `pnpm typecheck` e `pnpm build` em `frontend/`.
+- Textos da interface em português; código e identificadores em inglês.
+- Rótulos de status, categoria, criticidade e origem vêm **só** de `src/lib/labels.ts` (status e categorias exatamente como no case). Nunca escrever esses textos nos componentes.
+- Cores, espaçamento e tipografia vêm dos tokens em `src/index.css` (CSS variables, tema escuro padrão + claro). Nada de cores soltas nos componentes; o `--accent` é neutro e nunca compete com a criticidade.
+- Criticidade nunca só por cor: sempre cor + ícone + rótulo (`SeverityBadge`). Status também com ícone + rótulo (`StatusBadge`).
+- Incidente com responsável: estilo `.incident-assigned` + `AssigneeBadge` (iniciais do analista).
+- Toda chamada à API passa por `src/api/client.ts` (`apiRequest`), que trata o token, o 401 (encerra a sessão: "Sua sessão expirou") e transforma problem+json em `ApiError`. O 409 traz o estado atual em `error.current`.
+- Retry (TanStack Query): nunca em 4xx; só falha de rede e 502/503/504, até 3 vezes, respeitando o `Retry-After`.
+- Tipos da API em `src/api/types.ts`, espelhando os schemas do backend; mudou um schema, atualize os tipos no mesmo PR.
+- Token JWT em memória + sessionStorage (por aba). Preferências (tema) no localStorage, sempre com try/catch (`src/lib/storage.ts`).
+- Componentes do shadcn só quando necessários (`pnpm dlx shadcn@latest add <nome>`); ficam em `src/components/ui/`.
+- Acessibilidade: foco visível, `aria-label` em botões só com ícone, `prefers-reduced-motion` respeitado.
+
 ## Fora do escopo do MVP
 Integração real com WhatsApp, mapa, WebSocket/SSE (usamos polling), app do motorista.
