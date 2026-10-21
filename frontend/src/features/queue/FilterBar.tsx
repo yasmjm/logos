@@ -1,4 +1,4 @@
-import { X } from 'lucide-react'
+import { Check, X } from 'lucide-react'
 
 import type { IncidentStatus } from '@/api/types'
 import { Button } from '@/components/ui/button'
@@ -49,7 +49,7 @@ export function FilterBar({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div role="group" aria-label="Status" className="inline-flex flex-wrap rounded-md border bg-surface-1 p-0.5">
+      <div role="group" aria-label="Status" className="inline-flex flex-wrap gap-0.5 rounded-md border bg-surface-1 p-0.5">
         {STATUSES.map((status) => {
           const pressed = filters.status.includes(status)
           return (
@@ -59,10 +59,11 @@ export function FilterBar({
               aria-pressed={pressed}
               onClick={() => update((f) => ({ status: toggle(f.status, status) }))}
               className={cn(
-                'rounded-sm px-2 py-1 text-xs text-text-muted transition-colors hover:text-text',
-                pressed && 'bg-surface-3 font-medium text-text',
+                'inline-flex items-center gap-1 rounded-sm border border-transparent px-2 py-1 text-xs text-text-muted transition-colors hover:text-text',
+                pressed && 'border-border-strong bg-surface-3 font-medium text-text',
               )}
             >
+              {pressed && <Check aria-hidden className="size-3" />}
               {STATUS_LABELS[status]}
             </button>
           )

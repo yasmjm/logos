@@ -3,8 +3,7 @@ import { Calculator, Siren } from 'lucide-react'
 import { useAppConfig } from '@/api/appConfig'
 import type { IncidentDetail } from '@/api/types'
 import { CARGO_LABELS, CLIENT_TIER_LABELS } from '@/lib/labels'
-
-const number = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 })
+import { formatNumber as fmt } from '@/lib/priorityText'
 
 /** "Por que está nesta posição": the score's arithmetic in plain language. */
 export function PriorityExplanation({ incident }: { incident: IncidentDetail }) {
@@ -43,7 +42,7 @@ export function PriorityExplanation({ incident }: { incident: IncidentDetail }) 
             <span className="text-text-subtle"> · </span>
             {CLIENT_TIER_LABELS[incident.client_tier]} {b.client_points} × {fmt(weights?.client)}
             <span className="text-text-subtle"> = </span>
-            {number.format(b.base)}
+            {fmt(b.base)}
             {b.wait_bonus > 0 && (
               <>
                 <span className="text-text-subtle"> · </span>+{b.wait_bonus} de espera
@@ -63,8 +62,4 @@ export function PriorityExplanation({ incident }: { incident: IncidentDetail }) 
       )}
     </section>
   )
-}
-
-function fmt(weight: number | undefined): string {
-  return weight === undefined ? '…' : number.format(weight)
 }

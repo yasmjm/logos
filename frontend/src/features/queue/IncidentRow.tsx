@@ -3,11 +3,12 @@ import { forwardRef, type KeyboardEvent } from 'react'
 
 import type { Incident } from '@/api/types'
 import { AssigneeBadge } from '@/components/AssigneeBadge'
-import { CargoBadges } from '@/components/CargoBadges'
+import { ImpactMarkers } from '@/components/ImpactMarkers'
 import { CategoryLabel } from '@/components/CategoryLabel'
 import { SeverityBadge } from '@/components/SeverityBadge'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { ScoreCell } from '@/features/queue/ScoreCell'
 import { TimingCell } from '@/features/queue/TimingCell'
 import { type SlaRules, unownedMinutes } from '@/features/queue/sla'
 import { formatLocation } from '@/lib/format'
@@ -100,8 +101,16 @@ export const IncidentRow = forwardRef<HTMLDivElement, IncidentRowProps>(function
         incident.assignee && !selected && 'incident-assigned',
       )}
     >
-      <div role="gridcell" data-area="sev">
+      <div role="gridcell" data-area="score" className="hidden md:block">
+        <ScoreCell incident={incident} />
+      </div>
+
+      <div role="gridcell" data-area="sev" className="flex flex-col items-start gap-1">
         <SeverityBadge severity={incident.severity} />
+        {/* Phones: the score sits under the severity, where desktop shows its own column. */}
+        <span className="pl-1 md:hidden">
+          <ScoreCell incident={incident} />
+        </span>
       </div>
 
       <div role="gridcell" data-area="cat" className="hidden min-w-0 md:flex">
@@ -111,7 +120,6 @@ export const IncidentRow = forwardRef<HTMLDivElement, IncidentRowProps>(function
       <div role="gridcell" data-area="desc" className="flex min-w-0 items-center gap-2 overflow-hidden">
         {unowned !== null && <UnownedBadge minutes={unowned} className="hidden md:inline-flex" />}
         {whatsapp && <WhatsAppBadge className="xl:hidden" iconOnlyBelowSm />}
-        <CargoBadges incident={incident} />
         <Tooltip>
           <TooltipTrigger asChild>
             <span className="truncate text-text">{incident.description}</span>
@@ -120,6 +128,10 @@ export const IncidentRow = forwardRef<HTMLDivElement, IncidentRowProps>(function
             {incident.description}
           </TooltipContent>
         </Tooltip>
+      </div>
+
+      <div role="gridcell" data-area="impact" className="hidden md:flex">
+        <ImpactMarkers incident={incident} />
       </div>
 
       <div role="gridcell" data-area="truck" className="hidden font-mono text-xs lg:block">
@@ -160,6 +172,7 @@ export const IncidentRow = forwardRef<HTMLDivElement, IncidentRowProps>(function
         className="flex min-w-0 items-center gap-1.5 overflow-hidden text-xs text-text-muted md:hidden"
       >
         {unowned !== null && <UnownedBadge minutes={unowned} />}
+        <ImpactMarkers incident={incident} className="shrink-0" />
         <span className="shrink-0 font-mono">{incident.truck_code}</span>
         <span aria-hidden>·</span>
         <span className="min-w-0 truncate">

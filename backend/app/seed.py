@@ -14,6 +14,7 @@ The API never deletes history: POST /demo/reset soft-deletes instead
 
 import random
 import uuid
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -75,8 +76,8 @@ FLEET_CLIENTS: list[tuple[str, ClientTier, CargoType]] = [
     ("Papelaria Capivara Sonhadora", ClientTier.STANDARD, CargoType.GENERAL),
     ("Móveis Jabuti Paciente", ClientTier.STANDARD, CargoType.GENERAL),
 ]
-FLEET_SIZE = 40
-FLEET_FIRST_CODE = 1001  # TRK-1001 ... TRK-1040
+FLEET_SIZE = 150  # enough for every active demo incident to have its own truck
+FLEET_FIRST_CODE = 1001  # TRK-1001 ... TRK-1150
 EMPTY_TRIP_EVERY = 8  # every 8th truck is returning empty
 UNKNOWN_TRUCK_RATIO = 0.05  # some reports name trucks missing from the fleet
 
@@ -449,12 +450,13 @@ def random_incident_fields(
     severity: Severity | None = None,
     truck_codes: list[str] | None = None,
     victims: bool | None = None,
+    busy: Collection[str] = (),
 ) -> dict[str, Any]:
     """One realistic incident report: a template with coherent severity, a real stretch
     of highway, and sometimes a WhatsApp message. Severity follows the seed's mix when
     not given (~15% high, ~45% medium, ~40% low). With `truck_codes`, the truck comes
     from the fleet, except a few unknown ones. `victims` forces (True) or excludes (False)
-    accidents with victims; None leaves it to chance."""
+    accidents with victims; None leaves it to chance. Trucks in `busy` are never picked."""
     if severity is None:
         severity = rng.choices(list(SEVERITY_COUNTS), weights=list(SEVERITY_COUNTS.values()))[0]
     templates = TEMPLATES_BY_SEVERITY[severity]
@@ -467,10 +469,13 @@ def random_incident_fields(
     template = rng.choice(templates)
     stretch = rng.choice(STRETCHES)
     km = Decimal(rng.randint(stretch.km_min * 10, stretch.km_max * 10)) / 10
-    if truck_codes and rng.random() >= UNKNOWN_TRUCK_RATIO:
-        truck_code = rng.choice(truck_codes)
+    free = [code for code in truck_codes or () if code not in busy]
+    if free and rng.random() >= UNKNOWN_TRUCK_RATIO:
+        truck_code = rng.choice(free)
     else:
         truck_code = f"TRK-{rng.randint(9000, 9999)}"  # not in the demo fleet
+        while truck_code in busy:
+            truck_code = f"TRK-{rng.randint(9000, 9999)}"
     source = IncidentSource.WHATSAPP if rng.random() < WHATSAPP_RATIO else IncidentSource.API
     return {
         "description": template.description,
@@ -529,6 +534,7 @@ def build_demo_incidents(
     Realistic on purpose, so the signal is not lost in red: almost every open incident
     is still within its SLA (app/domain/sla.py); only a handful are past it, including
     the escalated high-severity ones. Assumed incidents took 1 to 12 minutes to react.
+    Each truck has at most one active incident; resolved ones may repeat a truck.
     """
     severities = [sev for sev, count in SEVERITY_COUNTS.items() for _ in range(count)]
     rng.shuffle(severities)
@@ -544,7 +550,9 @@ def build_demo_incidents(
 
     incidents: list[Incident] = []
     events: list[IncidentEvent] = []
+    busy: set[str] = set()  # trucks that already have an active incident
     for index, (severity, kind) in enumerate(zip(severities, plan, strict=True)):
+        active = kind.startswith("open") or kind == "investigating"
         sla = SLA_MINUTES[severity]
         if kind == "open_fresh":  # within the SLA, some already amber (near it)
             created_at = now - _minutes(rng, 0.2, sla * FRESH_MAX_SLA_SHARE)
@@ -558,8 +566,14 @@ def build_demo_incidents(
             created_at = now - _minutes(rng, 45, WINDOW.total_seconds() / 60)
 
         fields = random_incident_fields(
-            rng, severity, list(fleet) if fleet else None, victims=index in with_victims
+            rng,
+            severity,
+            list(fleet) if fleet else None,
+            victims=index in with_victims,
+            busy=busy if active else (),
         )
+        if active:
+            busy.add(fields["truck_code"])
         incident = Incident(
             id=uuid.uuid4(),
             **fields,
