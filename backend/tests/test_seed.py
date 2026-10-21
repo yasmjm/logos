@@ -1,16 +1,20 @@
 import random
 from collections import Counter
+from datetime import UTC, datetime
 
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import IncidentCategory, Severity
+from app.models import Incident, IncidentCategory, IncidentStatus, Severity
 from app.seed import (
     SEVERITY_COUNTS,
     TEMPLATES,
     TEMPLATES_BY_SEVERITY,
+    add_demo_incidents,
     ensure_analysts,
     random_incident_fields,
 )
+from app.services.metrics import compute_metrics
 
 
 def test_each_category_has_at_least_eight_templates() -> None:
@@ -67,3 +71,27 @@ def test_ensure_analysts_keeps_existing_ids(db: Session) -> None:
 
     assert first == second
     assert set(first) == {"ana", "bruno"}
+
+
+def test_demo_set_keeps_totals_and_a_readable_signal(db: Session) -> None:
+    """Right after seeding, only a handful are past the SLA: the red stays meaningful."""
+    add_demo_incidents(db, ensure_analysts(db), datetime.now(UTC))
+    metrics = compute_metrics(db)
+
+    assert 5 <= metrics.sla_breached_now <= 10
+    assert 2 <= metrics.escalated_now <= 3
+    assert metrics.mtta_seconds is not None and 60 <= metrics.mtta_seconds <= 12 * 60
+
+    by_severity = dict(
+        db.execute(select(Incident.severity, func.count()).group_by(Incident.severity)).all()
+    )
+    by_status = dict(
+        db.execute(select(Incident.status, func.count()).group_by(Incident.status)).all()
+    )
+    assert by_severity == SEVERITY_COUNTS
+    assert by_status == {
+        IncidentStatus.OPEN: 85,
+        IncidentStatus.INVESTIGATING: 20,
+        IncidentStatus.CLOSED: 12,
+        IncidentStatus.INCONCLUSIVE: 3,
+    }
