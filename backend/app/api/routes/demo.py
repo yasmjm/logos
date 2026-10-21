@@ -1,7 +1,8 @@
 import random
+import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
 
 from app.api.deps import CurrentAnalyst, DbSession, DemoResetAnalyst, DemoSimulateAnalyst
@@ -12,9 +13,11 @@ from app.schemas.incident import IncidentOut
 from app.schemas.whatsapp import (
     BotReply,
     ConversationMessageOut,
+    ConversationRef,
     ConversationThread,
     FleetTruck,
     Phone,
+    RecentConversationOut,
     SimulatorMessage,
 )
 from app.services import demo as demo_service
@@ -102,3 +105,29 @@ def simulator_messages(phone: Phone, db: DbSession, _: CurrentAnalyst) -> Conver
 )
 def fleet(db: DbSession, _: CurrentAnalyst) -> list[FleetTruck]:
     return [FleetTruck.model_validate(t) for t in db.scalars(select(Truck).order_by(Truck.code))]
+
+
+@router.get(
+    "/whatsapp/conversations",
+    response_model=list[RecentConversationOut],
+    summary="Driver simulator: recent conversations (one per phone)",
+)
+def simulator_recent(db: DbSession, _: CurrentAnalyst) -> list[RecentConversationOut]:
+    return [RecentConversationOut(**vars(c)) for c in whatsapp_service.recent_conversations(db)]
+
+
+@router.get(
+    "/whatsapp/incidents/{incident_id}/conversation",
+    response_model=ConversationRef,
+    responses=problem_responses(404, 422),
+    summary="Driver simulator: the conversation that created an incident",
+)
+def simulator_incident_conversation(
+    incident_id: uuid.UUID, db: DbSession, _: CurrentAnalyst
+) -> ConversationRef:
+    phone = whatsapp_service.phone_of_incident(db, incident_id)
+    if phone is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, f"No WhatsApp conversation for incident {incident_id}."
+        )
+    return ConversationRef(phone=phone)

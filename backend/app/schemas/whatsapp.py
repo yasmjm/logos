@@ -70,3 +70,14 @@ class FleetTruck(BaseModel):
     cargo_type: CargoType
     client_name: str
     client_tier: ClientTier
+
+
+class RecentConversationOut(BaseModel):
+    phone: str
+    truck_code: str | None = Field(description="Truck the driver gave last; null if not yet.")
+    last_message_at: datetime
+    last_out_at: datetime | None = Field(description="Last message sent to the driver.")
+
+
+class ConversationRef(BaseModel):
+    phone: str

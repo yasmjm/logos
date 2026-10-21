@@ -1,3 +1,4 @@
+import uuid
 from datetime import timedelta
 
 import pytest
@@ -216,3 +217,29 @@ def test_simulator_lists_the_fleet(demo_api: TestClient, db: Session) -> None:
             "client_tier": "priority",
         }
     ]
+
+
+def test_simulator_lists_recent_conversations_with_their_truck(
+    demo_api: TestClient, db: Session
+) -> None:
+    whatsapp.receive(db, "5511990001002", "oi")  # no truck yet
+    _talk(db, "oi", "TRK-1001")
+
+    recent = demo_api.get("/demo/whatsapp/conversations").json()
+
+    assert [c["phone"] for c in recent] == [PHONE, "5511990001002"]
+    assert recent[0]["truck_code"] == "TRK-1001"
+    assert recent[1]["truck_code"] is None
+    assert recent[0]["last_out_at"] is not None
+
+
+def test_simulator_finds_the_conversation_of_an_incident(demo_api: TestClient, db: Session) -> None:
+    _talk(db, *FULL)
+    incident = _incident(db)
+
+    found = demo_api.get(f"/demo/whatsapp/incidents/{incident.id}/conversation")
+    missing = demo_api.get(f"/demo/whatsapp/incidents/{uuid.uuid4()}/conversation")
+
+    assert found.json() == {"phone": PHONE}
+    assert missing.status_code == 404
+    assert missing.headers["content-type"] == "application/problem+json"
