@@ -90,7 +90,7 @@ Por que cada escolha:
 - **SQLAlchemy síncrono:** mais simples de ler e testar; o FastAPI executa rotas síncronas num pool de threads, o que basta para o volume do MVP.
 - **PostgreSQL:** transações e travas de linha reais, essenciais para o controle de concorrência. A pontuação e as métricas são calculadas no próprio banco.
 - **Alembic:** o schema evolui por migrations versionadas; o CI confere que os modelos batem com elas.
-- **PyJWT e python-multipart:** as únicas dependências adicionadas no backend. O rate limit e o retry foram escritos à mão, por serem pequenos.
+- **PyJWT e python-multipart:** as únicas dependências do backend além da stack base (FastAPI, Uvicorn, SQLAlchemy, Alembic, Pydantic e pydantic-settings, e o driver psycopg). O rate limit e o retry foram escritos à mão, por serem pequenos.
 - **TanStack Query:** cache, polling, política de retry e estados de carregamento e erro sem reinventar.
 - **shadcn/ui (Radix):** componentes acessíveis (foco, teclado, leitor de tela) que ficam no repositório e usam os nossos tokens.
 
@@ -181,7 +181,7 @@ O que é real: a API, o banco, as regras, a concorrência, a autenticação e o 
 | **Falhas de rede e banco** | O **modo caos** injeta latência e respostas 503 nas rotas `/incidents`, numa taxa configurável, e expira sozinho em 3 minutos. |
 | **Restaurar** | `POST /demo/reset` arquiva os incidentes atuais (com evento de auditoria) e recria os dados com horários de agora. |
 
-As ferramentas de demonstração só existem com `DEMO_MODE=true` e `CHAOS_ENABLED=true`; desligadas, as rotas respondem 404 e o menu nem aparece.
+As ferramentas de demonstração só existem com `DEMO_MODE=true`, e o modo caos só com `CHAOS_ENABLED=true`; desligadas, as rotas respondem 404 e os itens somem do menu (sem nenhuma das duas, o menu Demonstração nem aparece).
 
 ---
 
