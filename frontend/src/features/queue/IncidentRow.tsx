@@ -1,8 +1,9 @@
-import { MapPinOff, MessageCircle, Siren } from 'lucide-react'
+import { MapPinOff, Siren } from 'lucide-react'
 import { forwardRef, type KeyboardEvent } from 'react'
 
 import type { Incident } from '@/api/types'
 import { AssigneeBadge } from '@/components/AssigneeBadge'
+import { SourceBadge } from '@/components/SourceBadge'
 import { ImpactMarkers } from '@/components/ImpactMarkers'
 import { CategoryLabel } from '@/components/CategoryLabel'
 import { SeverityBadge } from '@/components/SeverityBadge'
@@ -47,21 +48,6 @@ function Location({ incident }: { incident: Incident }) {
   )
 }
 
-function WhatsAppBadge({ className, iconOnlyBelowSm = false }: { className?: string; iconOnlyBelowSm?: boolean }) {
-  return (
-    <span
-      title="Relato recebido pelo WhatsApp"
-      className={cn(
-        'inline-flex shrink-0 items-center gap-1 rounded-sm border border-border-strong px-1 py-px text-[11px] font-medium text-text-muted',
-        className,
-      )}
-    >
-      <MessageCircle aria-hidden className="size-3" />
-      <span className={iconOnlyBelowSm ? 'sr-only sm:not-sr-only' : undefined}>WhatsApp</span>
-    </span>
-  )
-}
-
 function UnownedBadge({ minutes, className }: { minutes: number; className?: string }) {
   return (
     <span
@@ -82,7 +68,7 @@ export const IncidentRow = forwardRef<HTMLDivElement, IncidentRowProps>(function
 ) {
   const unowned = unownedMinutes(incident, now, rules)
   const isMine = incident.assignee?.id === myId
-  const whatsapp = incident.source === 'whatsapp'
+  const reported = incident.source !== 'api' // WhatsApp or manual: worth a badge
 
   return (
     <div
@@ -119,7 +105,7 @@ export const IncidentRow = forwardRef<HTMLDivElement, IncidentRowProps>(function
 
       <div role="gridcell" data-area="desc" className="flex min-w-0 items-center gap-2 overflow-hidden">
         {unowned !== null && <UnownedBadge minutes={unowned} className="hidden md:inline-flex" />}
-        {whatsapp && <WhatsAppBadge className="xl:hidden" iconOnlyBelowSm />}
+        {reported && <SourceBadge source={incident.source} className="xl:hidden" iconOnlyBelowSm />}
         <Tooltip>
           <TooltipTrigger asChild>
             <span className="truncate text-text">{incident.description}</span>
@@ -147,7 +133,7 @@ export const IncidentRow = forwardRef<HTMLDivElement, IncidentRowProps>(function
       </div>
 
       <div role="gridcell" data-area="src" className="hidden xl:block">
-        {whatsapp ? <WhatsAppBadge /> : <span className="sr-only">Integração</span>}
+        <SourceBadge source={incident.source} />
       </div>
 
       <div role="gridcell" data-area="owner" className="hidden md:flex">

@@ -61,7 +61,8 @@ export function describeEvent(event: IncidentEvent, incident: Incident): Timelin
     case 'created':
       return {
         ...base,
-        action: `Incidente recebido via ${SOURCE_LABELS[incident.source]}`,
+        // With an analyst (manual source): "Ana Souza registrou o incidente".
+        action: base.actor ? 'registrou o incidente' : `Incidente recebido via ${SOURCE_LABELS[incident.source]}`,
         detail: null,
       }
     case 'status_changed':
