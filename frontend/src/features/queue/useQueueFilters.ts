@@ -38,12 +38,15 @@ function sameSet(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((value) => b.includes(value))
 }
 
-function serialize(filters: QueueFilters): string {
+const INCIDENT_PARAM = 'incident'
+
+function serialize(filters: QueueFilters, incident: string | null): string {
   const params = new URLSearchParams()
   filters.severity.forEach((v) => params.append('severity', v))
   filters.category.forEach((v) => params.append('category', v))
   if (!sameSet(filters.status, DEFAULT_STATUSES)) filters.status.forEach((v) => params.append('status', v))
   if (filters.mine) params.set('mine', '1')
+  if (incident) params.set(INCIDENT_PARAM, incident)
   const query = params.toString()
   return query ? `?${query}` : ''
 }
@@ -58,8 +61,12 @@ function subscribe(notify: () => void): () => void {
   }
 }
 
-function navigate(filters: QueueFilters): void {
-  const url = `${window.location.pathname}${serialize(filters)}${window.location.hash}`
+function currentIncident(search: string): string | null {
+  return new URLSearchParams(search).get(INCIDENT_PARAM) || null
+}
+
+function navigate(filters: QueueFilters, incident = currentIncident(window.location.search)): void {
+  const url = `${window.location.pathname}${serialize(filters, incident)}${window.location.hash}`
   window.history.replaceState(window.history.state, '', url)
   listeners.forEach((notify) => notify())
 }
@@ -82,6 +89,12 @@ export function useQueueFilters() {
     [],
   )
   const clear = useCallback(() => navigate(parse('')), [])
+  /** The open incident (?incident=<id>) survives filter changes. */
+  const selectIncident = useCallback(
+    (id: string | null) => navigate(parse(window.location.search), id),
+    [],
+  )
+  const incidentId = currentIncident(search)
 
   const isDefault =
     !filters.severity.length &&
@@ -99,5 +112,5 @@ export function useQueueFilters() {
     [filters],
   )
 
-  return { filters, apiFilters, isDefault, update, clear }
+  return { filters, apiFilters, isDefault, update, clear, incidentId, selectIncident }
 }

@@ -18,7 +18,7 @@ export function CategoryLabel({
   const Icon = CATEGORY_ICONS[category]
   const label = CATEGORY_LABELS[category]
   return (
-    <span className={cn('inline-flex min-w-0 items-center gap-1.5', className)} title={label}>
+    <span className={cn('inline-flex max-w-full min-w-0 items-center gap-1.5', className)} title={label}>
       <Icon aria-hidden className="size-4 shrink-0 text-text-muted" />
       <span className={cn('truncate', labelClassName)}>{label}</span>
     </span>
