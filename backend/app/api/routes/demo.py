@@ -2,13 +2,24 @@ import random
 from typing import Annotated
 
 from fastapi import APIRouter, Query, status
+from sqlalchemy import select
 
-from app.api.deps import DbSession, DemoResetAnalyst, DemoSimulateAnalyst
+from app.api.deps import CurrentAnalyst, DbSession, DemoResetAnalyst, DemoSimulateAnalyst
 from app.api.responses import problem_responses
+from app.models import Truck
 from app.schemas.demo import DemoResetResponse, DemoSimulateResponse
 from app.schemas.incident import IncidentOut
+from app.schemas.whatsapp import (
+    BotReply,
+    ConversationMessageOut,
+    ConversationThread,
+    FleetTruck,
+    Phone,
+    SimulatorMessage,
+)
 from app.services import demo as demo_service
 from app.services import incidents as incident_service
+from app.services import whatsapp as whatsapp_service
 
 # Only mounted when DEMO_MODE=true (otherwise /demo/* is a plain 404).
 router = APIRouter(prefix="/demo", tags=["demo"], responses=problem_responses(401, 429, 503))
@@ -51,3 +62,43 @@ def simulate(
             for incident, priority, _ in filter(None, found)
         ]
     )
+
+
+@router.post(
+    "/whatsapp/messages",
+    response_model=BotReply,
+    responses=problem_responses(422),
+    summary="Driver simulator: send a message as the driver",
+    description="Same triage bot as POST /channels/whatsapp/webhook, authenticated by the analyst.",
+)
+def simulator_send(payload: SimulatorMessage, db: DbSession, _: CurrentAnalyst) -> BotReply:
+    return BotReply(replies=whatsapp_service.receive(db, payload.phone, payload.text))
+
+
+@router.get(
+    "/whatsapp/conversations/{phone}/messages",
+    response_model=ConversationThread,
+    responses=problem_responses(422),
+    summary="Driver simulator: the messages exchanged with a phone",
+)
+def simulator_messages(phone: Phone, db: DbSession, _: CurrentAnalyst) -> ConversationThread:
+    thread = whatsapp_service.thread(db, phone)
+    return ConversationThread(
+        step=thread.step,
+        options=thread.options,
+        messages=[
+            ConversationMessageOut(
+                id=str(m.id), direction=m.direction, text=m.text, created_at=m.created_at
+            )
+            for m in thread.messages
+        ],
+    )
+
+
+@router.get(
+    "/fleet",
+    response_model=list[FleetTruck],
+    summary="Driver simulator: the demo fleet, to pick a truck",
+)
+def fleet(db: DbSession, _: CurrentAnalyst) -> list[FleetTruck]:
+    return [FleetTruck.model_validate(t) for t in db.scalars(select(Truck).order_by(Truck.code))]

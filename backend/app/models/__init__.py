@@ -1,6 +1,7 @@
 # Import models here so Alembic autogenerate can discover them.
 from app.core.database import Base
 from app.models.analyst import Analyst
+from app.models.conversation import Conversation, ConversationMessage, MessageDirection
 from app.models.enums import (
     CargoType,
     ClientTier,
@@ -19,12 +20,15 @@ __all__ = [
     "Base",
     "CargoType",
     "ClientTier",
+    "Conversation",
+    "ConversationMessage",
     "Incident",
     "IncidentCategory",
     "IncidentEvent",
     "IncidentEventType",
     "IncidentSource",
     "IncidentStatus",
+    "MessageDirection",
     "Severity",
     "Truck",
 ]

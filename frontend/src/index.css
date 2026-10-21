@@ -88,6 +88,9 @@
   --cargo-perishable: oklch(0.82 0.11 205);
   --cargo-high-value: oklch(0.76 0.13 305);
   --client-strategic: oklch(0.88 0.12 100);
+  /* Driver simulator: the driver's bubbles (own colors, no messenger branding). */
+  --chat-driver-bg: oklch(0.4 0.09 265);
+  --chat-driver-text: oklch(0.98 0.005 265);
 
   /* Incident already owned by an analyst: quieter row + owner's initial */
   --assigned-row-bg: oklch(0.185 0.008 255);
@@ -142,6 +145,8 @@
   --cargo-perishable: oklch(0.55 0.11 215);
   --cargo-high-value: oklch(0.52 0.16 305);
   --client-strategic: oklch(0.6 0.13 95);
+  --chat-driver-bg: oklch(0.9 0.045 265);
+  --chat-driver-text: oklch(0.25 0.04 265);
 
   --assigned-row-bg: oklch(0.985 0.002 255);
   --assigned-row-text: var(--text-muted);
@@ -189,6 +194,8 @@
   --color-cargo-perishable: var(--cargo-perishable);
   --color-cargo-high-value: var(--cargo-high-value);
   --color-client-strategic: var(--client-strategic);
+  --color-chat-driver: var(--chat-driver-bg);
+  --color-chat-driver-text: var(--chat-driver-text);
 
   --color-assigned-row: var(--assigned-row-bg);
   --color-assignee: var(--assignee-bg);
