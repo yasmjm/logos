@@ -211,7 +211,7 @@ flowchart LR
     Q2 --> DET[Worker de detecção]
     BOT --> DB[(PostgreSQL)]
     DET --> DB
-    DB -. incident.* .-> EX{{exchange de eventos}}
+    DB -.->|"incident.*"| EX{{exchange de eventos}}
     EX --> RT[Tempo real · SSE]
     EX --> OUT[[whatsapp.outbound]] --> GRAPH[Graph API da Meta]
     EX --> BI[Métricas e BI]
