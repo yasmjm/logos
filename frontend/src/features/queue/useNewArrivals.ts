@@ -20,7 +20,11 @@ export function useNewArrivals(
   // `ids` must be memoized by the caller: this runs once per refresh, not per render.
   useEffect(() => {
     const current = ids
-    if (!current || isPlaceholderData) return
+    if (!current) {
+      seen.current = null // data was cleared (e.g. demo reset): the next load is a first load
+      return
+    }
+    if (isPlaceholderData) return
     const previous = seen.current
     seen.current = { key: queryKey, ids: new Set(current) }
     if (!previous || previous.key !== queryKey) return // first load or new filters
