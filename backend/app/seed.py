@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
 from app.core.security import hash_password
+from app.domain.sla import ESCALATION_MINUTES, SLA_MINUTES
 from app.models import (
     Analyst,
     Incident,
@@ -41,6 +42,11 @@ INVESTIGATING_COUNT = 20
 CLOSED_COUNT = 12
 INCONCLUSIVE_COUNT = 3
 WINDOW = timedelta(hours=6)
+# High-severity incidents by planned fate (the rest of each status goes to medium/low).
+HIGH_PLAN = {"open_breached": 3, "investigating": 9, "closed": 4, "inconclusive": 1}
+OPEN_BREACHED_OTHERS = 4  # medium/low open incidents already past their SLA
+FRESH_MAX_SLA_SHARE = 0.8  # open within the SLA: up to 80% of it elapsed
+REACTION_MINUTES = (1, 12)  # time to be assumed (drives the MTTA)
 WHATSAPP_RATIO = 0.3
 # WhatsApp reports where the driver did not say where they are.
 WHATSAPP_WITHOUT_LOCATION_COUNT = 5
@@ -416,67 +422,87 @@ def random_incident_fields(rng: random.Random, severity: Severity | None = None)
     }
 
 
+def _assign_statuses(rng: random.Random, severities: list[Severity]) -> list[str]:
+    """Plan each incident's fate, keeping the status totals. Most high-severity
+    incidents are already being handled; the few left open are the escalated ones."""
+    plan: list[str | None] = [None] * len(severities)
+    highs = [i for i, s in enumerate(severities) if s is Severity.HIGH]
+    others = [i for i, s in enumerate(severities) if s is not Severity.HIGH]
+    rng.shuffle(highs)
+    rng.shuffle(others)
+
+    for kind, count in HIGH_PLAN.items():
+        for _ in range(count):
+            plan[highs.pop()] = kind
+    remaining = {
+        "investigating": INVESTIGATING_COUNT - HIGH_PLAN["investigating"],
+        "closed": CLOSED_COUNT - HIGH_PLAN["closed"],
+        "inconclusive": INCONCLUSIVE_COUNT - HIGH_PLAN["inconclusive"],
+        "open_breached": OPEN_BREACHED_OTHERS,
+    }
+    for kind, count in remaining.items():
+        for _ in range(count):
+            plan[others.pop()] = kind
+    return [kind or "open_fresh" for kind in plan]
+
+
+def _minutes(rng: random.Random, low: float, high: float) -> timedelta:
+    return timedelta(minutes=rng.uniform(low, high))
+
+
 def build_demo_incidents(
     rng: random.Random,
     now: datetime,
     analysts: list[Analyst],
 ) -> tuple[list[Incident], list[IncidentEvent]]:
-    """The 120-incident demo set, with status history coherent with the timestamps."""
+    """The 120-incident demo set, with status history coherent with the timestamps.
+
+    Realistic on purpose, so the signal is not lost in red: almost every open incident
+    is still within its SLA (app/domain/sla.py); only a handful are past it, including
+    the escalated high-severity ones. Assumed incidents took 1 to 12 minutes to react.
+    """
     severities = [sev for sev, count in SEVERITY_COUNTS.items() for _ in range(count)]
     rng.shuffle(severities)
+    plan = _assign_statuses(rng, severities)
 
     incidents: list[Incident] = []
-    for severity in severities:
-        created_at = now - timedelta(seconds=rng.uniform(0, WINDOW.total_seconds()))
-        incidents.append(
-            Incident(
-                id=uuid.uuid4(),
-                **random_incident_fields(rng, severity),
-                status=IncidentStatus.OPEN,
-                version=1,
-                created_at=created_at,
-                updated_at=created_at,
-            )
-        )
-
-    whatsapp = [i for i in incidents if i.source is IncidentSource.WHATSAPP]
-    for incident in rng.sample(whatsapp, WHATSAPP_WITHOUT_LOCATION_COUNT):
-        incident.highway = None
-        incident.km = None
-        incident.location_note = None
-        incident.raw_message = _whatsapp_message(
-            rng, incident.truck_code, None, incident.description
-        )
-
-    # Older incidents are the ones the team already had time to handle.
-    oldest_first = sorted(incidents, key=lambda i: i.created_at)
-    resolved_pool = [i for i in oldest_first if now - i.created_at > timedelta(hours=2)]
-    resolved = rng.sample(resolved_pool, CLOSED_COUNT + INCONCLUSIVE_COUNT)
-    investigating_pool = [
-        i for i in oldest_first if now - i.created_at > timedelta(minutes=30) and i not in resolved
-    ]
-    investigating = rng.sample(investigating_pool, INVESTIGATING_COUNT)
-
     events: list[IncidentEvent] = []
-    for incident in incidents:
+    for severity, kind in zip(severities, plan, strict=True):
+        sla = SLA_MINUTES[severity]
+        if kind == "open_fresh":  # within the SLA, some already amber (near it)
+            created_at = now - _minutes(rng, 0.2, sla * FRESH_MAX_SLA_SHARE)
+        elif kind == "open_breached" and severity is Severity.HIGH:  # escalated: "Sem dono"
+            created_at = now - _minutes(rng, ESCALATION_MINUTES + 1, ESCALATION_MINUTES + 20)
+        elif kind == "open_breached":
+            created_at = now - _minutes(rng, sla + 2, sla + 30)
+        elif kind == "investigating":
+            created_at = now - _minutes(rng, 20, 150)
+        else:  # closed / inconclusive, spread over the window
+            created_at = now - _minutes(rng, 45, WINDOW.total_seconds() / 60)
+
+        incident = Incident(
+            id=uuid.uuid4(),
+            **random_incident_fields(rng, severity),
+            status=IncidentStatus.OPEN,
+            version=1,
+            created_at=created_at,
+            updated_at=created_at,
+        )
+        incidents.append(incident)
         events.append(
             IncidentEvent(
                 incident_id=incident.id,
                 event_type=IncidentEventType.CREATED,
                 from_status=None,
                 to_status=IncidentStatus.OPEN,
-                created_at=incident.created_at,
+                created_at=created_at,
             )
         )
+        if kind.startswith("open"):
+            continue
 
-    final_statuses = (
-        [(i, IncidentStatus.INVESTIGATING) for i in investigating]
-        + [(i, IncidentStatus.CLOSED) for i in resolved[:CLOSED_COUNT]]
-        + [(i, IncidentStatus.INCONCLUSIVE) for i in resolved[CLOSED_COUNT:]]
-    )
-    for incident, final_status in final_statuses:
         analyst = rng.choice(analysts)
-        acknowledged_at = incident.created_at + timedelta(minutes=rng.uniform(2, 25))
+        acknowledged_at = created_at + _minutes(rng, *REACTION_MINUTES)
         incident.status = IncidentStatus.INVESTIGATING
         incident.assigned_to = analyst.id
         incident.acknowledged_at = acknowledged_at
@@ -492,14 +518,11 @@ def build_demo_incidents(
                 created_at=acknowledged_at,
             )
         )
-
-        if final_status is IncidentStatus.INVESTIGATING:
+        if kind == "investigating":
             continue
 
-        resolved_at = min(
-            acknowledged_at + timedelta(minutes=rng.uniform(15, 120)),
-            now - timedelta(minutes=1),
-        )
+        final_status = IncidentStatus.CLOSED if kind == "closed" else IncidentStatus.INCONCLUSIVE
+        resolved_at = min(acknowledged_at + _minutes(rng, 10, 90), now - timedelta(minutes=1))
         incident.status = final_status
         incident.resolved_at = resolved_at
         incident.version += 1
@@ -513,6 +536,15 @@ def build_demo_incidents(
                 to_status=final_status,
                 created_at=resolved_at,
             )
+        )
+
+    whatsapp = [i for i in incidents if i.source is IncidentSource.WHATSAPP]
+    for incident in rng.sample(whatsapp, WHATSAPP_WITHOUT_LOCATION_COUNT):
+        incident.highway = None
+        incident.km = None
+        incident.location_note = None
+        incident.raw_message = _whatsapp_message(
+            rng, incident.truck_code, None, incident.description
         )
 
     return incidents, events
