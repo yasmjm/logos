@@ -136,3 +136,21 @@ def test_demo_incidents_copy_fleet_data_with_a_few_unknown_trucks(db: Session) -
 
     assert 1 <= unknown <= 12
     assert copied == 120 - unknown
+
+
+def test_demo_set_has_few_active_victims_one_unowned(db: Session) -> None:
+    add_demo_incidents(db, ensure_analysts(db), datetime.now(UTC))
+
+    active_victims = (
+        db.execute(
+            select(Incident.assigned_to).where(
+                Incident.category == IncidentCategory.ACCIDENT_WITH_VICTIMS,
+                Incident.status.in_([IncidentStatus.OPEN, IncidentStatus.INVESTIGATING]),
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    assert 2 <= len(active_victims) <= 3
+    assert sum(owner is None for owner in active_victims) == 1

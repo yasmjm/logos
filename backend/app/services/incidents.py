@@ -120,14 +120,17 @@ def list_incidents(
     db: Session, filters: IncidentFilters, limit: int, offset: int
 ) -> tuple[list[tuple[Incident, Priority]], int]:
     columns = _priority_columns()
-    score = columns[0]
+    score, victims = columns[0], columns[-1]
     is_resolved = case((Incident.status.in_(RESOLVED_STATUSES), 1), else_=0)
+    # Among active victims (all at the same fixed score): nobody on it yet comes first.
+    owned_victims = case((victims & Incident.assigned_to.is_not(None), 1), else_=0)
 
     stmt = (
         filters.apply(select(Incident, *columns))
         .options(joinedload(Incident.assignee))
-        # Resolved last; then priority (victims at 200); ties: the oldest first.
-        .order_by(is_resolved, score.desc(), Incident.created_at, Incident.id)
+        # Resolved last; then priority (victims at 200, unowned victims first);
+        # ties: the oldest first.
+        .order_by(is_resolved, score.desc(), owned_victims, Incident.created_at, Incident.id)
         .limit(limit)
         .offset(offset)
     )

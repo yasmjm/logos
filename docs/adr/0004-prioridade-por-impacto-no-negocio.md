@@ -1,4 +1,4 @@
-# ADR 0005: Priorização por impacto no negócio
+# ADR 0004: Priorização por impacto no negócio
 
 - **Status:** aceito (pesos em validação)
 - **Data:** 2026-10-21
@@ -16,7 +16,7 @@ A primeira regra de prioridade somava criticidade, categoria e tempo de espera. 
 
   `base = (2 × carga + 1,5 × problema + 1 × companhia) / 4,5`, com resultado de 0 a 100.
 - **Bônus de espera:** +1 ponto por minuto sem responsável, até +20. Ele congela no `acknowledged_at`, para que nada fique esquecido no fim da fila.
-- **Vítimas são regra fixa, fora da média:** um incidente com vítimas ativo tem score 200 e fica acima de todos. Entre vítimas, o mais antigo vem primeiro. Vida não entra em ponderação com valor de carga.
+- **Vítimas são regra fixa, fora da média:** um incidente com vítimas ativo tem score 200 e fica acima de todos. Entre vítimas, as sem responsável vêm primeiro, depois a mais antiga. Vida não entra em ponderação com valor de carga.
 - **Encerrados** não têm bônus e ficam no fim da fila.
 - **Cópia da frota:** a carga e o cliente vêm da frota (`trucks`), copiados para o incidente no momento da criação, porque a carga muda a cada viagem. Caminhão desconhecido conta como carga geral e cliente padrão, com um aviso na tela.
 - **Fonte única e transparência:**

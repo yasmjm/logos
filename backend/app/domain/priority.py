@@ -1,4 +1,4 @@
-"""Business-impact priority, in one place (see docs/adr/0005).
+"""Business-impact priority, in one place (see docs/adr/0004).
 
 Score of an active incident = weighted mean of three 0-100 grades + waiting bonus:
 
@@ -7,7 +7,8 @@ Score of an active incident = weighted mean of three 0-100 grades + waiting bonu
 
 The waiting bonus is 1 point per minute without an owner, capped at 20, frozen when
 someone takes the incident (acknowledged_at). Active incidents with victims are
-always above everything else (fixed score, outside the mean). Resolved incidents get
+always above everything else (fixed score, outside the mean); among them, those
+without an owner first, then the oldest. Resolved incidents get
 no bonus and go to the end of the queue. The weights are a hypothesis to be
 validated with the client's operation.
 """
