@@ -32,6 +32,12 @@ Entre com **Entrar como Ana** ou **Entrar como Bruno** (senha de demonstração 
 
 `VITE_API_URL` é obrigatório no build de produção (por exemplo, a URL do backend no Render).
 
+## Deploy na Vercel
+
+`frontend/vercel.json` define o build (pnpm, Vite, saída em `dist/`), o rewrite de SPA para `index.html` e os headers de cache. Os arquivos de `/assets` têm hash no nome, então ficam em cache por um ano (`immutable`); o `index.html` não é cacheado.
+
+No painel da Vercel: **Root Directory** = `frontend` e a variável **`VITE_API_URL`** com a URL da API (ela é lida no momento do build; sem ela, o app mostra um erro de configuração). Depois do deploy, inclua a URL do front em `FRONTEND_ORIGINS` no Render (CORS).
+
 ## Estrutura
 
 - `src/api/`: cliente HTTP, sessão, erros (`ApiError`), política de retry e tipos que espelham os schemas da API.
