@@ -5,13 +5,24 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Incident, IncidentCategory, IncidentStatus, Severity
+from app.models import (
+    CargoType,
+    ClientTier,
+    Incident,
+    IncidentCategory,
+    IncidentStatus,
+    Severity,
+    Truck,
+)
 from app.seed import (
+    FLEET_SIZE,
     SEVERITY_COUNTS,
     TEMPLATES,
     TEMPLATES_BY_SEVERITY,
     add_demo_incidents,
+    demo_fleet,
     ensure_analysts,
+    ensure_fleet,
     random_incident_fields,
 )
 from app.services.metrics import compute_metrics
@@ -95,3 +106,33 @@ def test_demo_set_keeps_totals_and_a_readable_signal(db: Session) -> None:
         IncidentStatus.CLOSED: 12,
         IncidentStatus.INCONCLUSIVE: 3,
     }
+
+
+def test_demo_fleet_covers_every_cargo_and_tier() -> None:
+    fleet = demo_fleet()
+
+    assert len(fleet) == FLEET_SIZE == 40
+    assert len({truck.code for truck in fleet}) == 40
+    assert {truck.cargo_type for truck in fleet} == set(CargoType)
+    assert {truck.client_tier for truck in fleet} == set(ClientTier)
+
+
+def test_ensure_fleet_is_idempotent(db: Session) -> None:
+    ensure_fleet(db)
+    ensure_fleet(db)
+
+    assert db.scalar(select(func.count()).select_from(Truck)) == 40
+
+
+def test_demo_incidents_copy_fleet_data_with_a_few_unknown_trucks(db: Session) -> None:
+    add_demo_incidents(db, ensure_analysts(db), datetime.now(UTC))
+
+    unknown = db.scalar(select(func.count()).select_from(Incident).where(~Incident.fleet_match))
+    copied = db.scalar(
+        select(func.count())
+        .select_from(Incident)
+        .where(Incident.fleet_match, Incident.client_name.is_not(None))
+    )
+
+    assert 1 <= unknown <= 12
+    assert copied == 120 - unknown

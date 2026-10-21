@@ -9,10 +9,10 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import func, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from app.models import Incident, IncidentEvent, IncidentEventType
+from app.models import Incident, IncidentEvent, IncidentEventType, Truck
 from app.schemas.incident_create import IncidentCreate
 from app.seed import add_demo_incidents, ensure_analysts, random_incident_fields
 from app.services.incidents import create_incident
@@ -54,6 +54,8 @@ def reset_demo_data(db: Session, analyst_id: uuid.UUID) -> ResetResult:
 
 def simulate_incidents(db: Session, count: int, rng: random.Random) -> list[uuid.UUID]:
     """New reports from the seed templates, through the same path as public ingestion."""
+    truck_codes = list(db.scalars(select(Truck.code)))
     return [
-        create_incident(db, IncidentCreate(**random_incident_fields(rng))) for _ in range(count)
+        create_incident(db, IncidentCreate(**random_incident_fields(rng, truck_codes=truck_codes)))
+        for _ in range(count)
     ]
