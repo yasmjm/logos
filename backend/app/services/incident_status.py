@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.retry import read_with_retry
 from app.models import Incident, IncidentEvent, IncidentEventType, IncidentStatus
+from app.services.whatsapp import notify_driver
 
 S = IncidentStatus
 
@@ -118,6 +119,7 @@ def change_status(
             note=note,
         )
     )
+    notify_driver(db, incident_id, target, analyst_id)
     db.commit()
 
 

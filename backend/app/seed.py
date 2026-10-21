@@ -2,8 +2,8 @@
 
 CLI (local development only): uv run python -m app.seed
 
-The CLI WIPES incidents and incident_events with TRUNCATE, then recreates the
-incidents with timestamps relative to now (last 6 hours). This deletes audit
+The CLI WIPES incidents, incident_events and WhatsApp conversations with TRUNCATE, then
+recreates the incidents with timestamps relative to now (last 6 hours). This deletes audit
 history on purpose and must never run against a shared or production database.
 Analysts are kept with the same ids (created only if missing), so tokens issued
 before the seed keep working.
@@ -679,8 +679,8 @@ def add_demo_incidents(db: Session, analysts: list[Analyst], now: datetime) -> i
 
 def seed(db: Session) -> None:
     """Local development only: wipes incidents and their history (see module docstring)."""
-    # Both tables in one TRUNCATE satisfies the RESTRICT foreign key between them.
-    db.execute(text("TRUNCATE incident_events, incidents"))
+    # One TRUNCATE for every table that references incidents (RESTRICT foreign keys).
+    db.execute(text("TRUNCATE conversation_messages, conversations, incident_events, incidents"))
     add_demo_incidents(db, ensure_analysts(db), datetime.now(UTC))
 
 
