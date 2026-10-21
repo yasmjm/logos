@@ -8,7 +8,7 @@ export type IncidentCategory =
   | 'mechanical_failure'
   | 'road_blockage'
 export type IncidentStatus = 'open' | 'investigating' | 'closed' | 'inconclusive'
-export type IncidentSource = 'api' | 'whatsapp'
+export type IncidentSource = 'api' | 'whatsapp' | 'manual'
 export type IncidentEventType = 'created' | 'status_changed' | 'deleted' | 'updated'
 export type CargoType = 'hazardous' | 'perishable' | 'high_value' | 'general' | 'empty'
 export type ClientTier = 'strategic' | 'priority' | 'standard'
@@ -223,4 +223,15 @@ export interface RecentConversation {
   truck_code: string | null
   last_message_at: IsoDateTime
   last_out_at: IsoDateTime | null
+}
+
+/** Body of POST /incidents/manual (same schema as the ingestion). */
+export interface ManualIncidentInput {
+  truck_code: string
+  category: IncidentCategory
+  severity: Severity
+  description: string
+  highway?: string
+  km?: string
+  location_note?: string
 }

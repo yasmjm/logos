@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 
 import type { IncidentDetail } from '@/api/types'
 import { CategoryLabel } from '@/components/CategoryLabel'
+import { SourceBadge } from '@/components/SourceBadge'
 import { formatDateTime, formatLocation } from '@/lib/format'
 import { CARGO_HINTS, CLIENT_TIER_LABELS, SOURCE_LABELS } from '@/lib/labels'
 
@@ -35,7 +36,9 @@ export function IncidentFacts({ incident }: { incident: IncidentDetail }) {
         <Fact label="Categoria">
           <CategoryLabel category={incident.category} />
         </Fact>
-        <Fact label="Origem">{SOURCE_LABELS[incident.source]}</Fact>
+        <Fact label="Origem">
+          {incident.source === 'api' ? SOURCE_LABELS.api : <SourceBadge source={incident.source} />}
+        </Fact>
         <Fact label="Caminhão">
           <span className="font-mono">{incident.truck_code}</span>
         </Fact>

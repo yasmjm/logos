@@ -1,5 +1,7 @@
 import { apiRequest } from '@/api/client'
 import type {
+  FleetTruck,
+  ManualIncidentInput,
   IncidentDetail,
   IncidentFilters,
   IncidentListResponse,
@@ -55,4 +57,12 @@ export function archiveIncident(id: string): Promise<void> {
 /** MTTA and MTTR over the last 24 h, plus incidents needing attention now. */
 export function fetchMetrics(): Promise<IncidentMetrics> {
   return apiRequest('/incidents/metrics')
+}
+
+export function createManualIncident(body: ManualIncidentInput): Promise<IncidentDetail> {
+  return apiRequest('/incidents/manual', { method: 'POST', json: body })
+}
+
+export function fetchFleetTrucks(): Promise<FleetTruck[]> {
+  return apiRequest('/fleet')
 }

@@ -35,6 +35,13 @@ export const SEVERITY_LABELS: Record<Severity, string> = {
 export const SOURCE_LABELS: Record<IncidentSource, string> = {
   api: 'Integração',
   whatsapp: 'WhatsApp',
+  manual: 'Manual',
+}
+
+export const SOURCE_HINTS: Record<IncidentSource, string> = {
+  api: 'Recebido de uma integração',
+  whatsapp: 'Relato recebido pelo WhatsApp',
+  manual: 'Registrado por um analista (ex.: o motorista ligou)',
 }
 
 export const CARGO_LABELS: Record<CargoType, string> = {

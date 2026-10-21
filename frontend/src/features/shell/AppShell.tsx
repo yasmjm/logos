@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { ChaosBanner } from '@/features/demo/ChaosBanner'
 import { DemoMenu } from '@/features/demo/DemoMenu'
 import { DriverSimulatorProvider } from '@/features/demo/DriverSimulatorProvider'
+import { NewIncidentButton } from '@/features/incident/NewIncidentButton'
 import { QueuePage } from '@/features/queue/QueuePage'
 import { UpdatedIndicator } from '@/features/queue/UpdatedIndicator'
 
@@ -37,6 +38,7 @@ export function AppShell({ session }: { session: Session }) {
           <span className="hidden text-sm text-text-muted sm:inline">Central de Incidentes</span>
           <div className="ml-auto flex items-center gap-1">
             <UpdatedIndicator />
+            <NewIncidentButton />
             <DemoMenu />
             <AssigneeBadge analyst={session.analyst} className="mx-2 text-text" />
             <ThemeToggle />

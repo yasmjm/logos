@@ -27,6 +27,7 @@ class IncidentStatus(StrEnum):
 class IncidentSource(StrEnum):
     API = "api"
     WHATSAPP = "whatsapp"
+    MANUAL = "manual"  # registered by an analyst (e.g. the driver called)
 
 
 class CargoType(StrEnum):

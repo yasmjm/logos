@@ -21,6 +21,7 @@ MVP do **Logos**, o "cérebro" da central de incidentes de uma transportadora co
 4. **Motorista no WhatsApp (simulado):** menu **Demonstração → Simulador do motorista**. Escolha um caminhão, mande "oi" e responda a triagem. O incidente aparece na fila; assuma-o e clique em **Ver conversa com o motorista** para ver o retorno que ele recebeu.
 5. **Resiliência:** **Demonstração → Modo caos**. Injete latência e falhas e veja a interface segurar os erros sem perder os dados. O caos **desliga sozinho em 3 minutos**.
 6. **Incidentes chegando:** **Demonstração → Simular incidentes**.
+7. **Registro manual:** clique em **Novo incidente** no topo (atalho **N**), como se o motorista tivesse ligado. Preencha caminhão, categoria, criticidade e descrição; o incidente entra na fila com a origem "Manual" e o painel dele abre.
 
 > Se os tempos da fila parecerem antigos (a avaliação pode acontecer dias depois da entrega), use **Demonstração → Restaurar dados de demonstração**. Nada é apagado: os incidentes antigos são arquivados e novos são criados com horários relativos a agora.
 
@@ -47,7 +48,7 @@ Por isso, a métrica que guia o Logos é o **tempo médio de reação (MTTA)**: 
 | Requisito | Como o Logos resolve | Onde está |
 |---|---|---|
 | API que recebe e serve incidentes | `POST /incidents` (integrações, com API key), webhook do WhatsApp, `GET /incidents` com filtros e paginação | `backend/app/api/routes/incidents.py`, `channels.py` |
-| CRUD com persistência | Criar, ler, editar (`PATCH`), mudar status e arquivar (soft delete) em PostgreSQL, com histórico de auditoria | `backend/app/services/` |
+| CRUD com persistência | Criar, ler, editar e arquivar pela interface (botão **Novo incidente**, painel do incidente com **Editar** e **Arquivar**), além de mudar status; tudo em PostgreSQL, com histórico de auditoria e soft delete | `backend/app/services/`, `POST /incidents/manual` |
 | 100 incidentes priorizados em milissegundos | Ordenação pela pontuação calculada no banco; criticidade sempre com cor **e** ícone **e** rótulo; SLA colorido; marcador "Sem dono há X min"; incidentes com dono em segundo plano | `backend/app/domain/priority.py`, `frontend/src/features/queue/` |
 | Gestão por exceção e filtros | Filtros por criticidade, categoria, status e "Meus incidentes", combináveis e sincronizados na URL; KPIs clicáveis | `useQueueFilters.ts`, `KpiBar.tsx` |
 | Dois analistas no mesmo incidente | Lock otimista com `version`: o `UPDATE` só acontece se a versão for a que o analista viu; senão, 409 com o estado atual | `backend/app/services/incident_status.py`, ADR 0002 |
@@ -246,6 +247,7 @@ Com a AWS, a operação também pode rodar na região de **São Paulo (sa-east-1
 - **Perfis de acesso** (analista e supervisor), por exemplo para restringir quem arquiva um incidente que está com outra pessoa.
 - **Tempo real com várias instâncias:** trocar o polling por SSE com Redis pub/sub (ADR 0003).
 - **Validar os pesos da prioridade** com a operação do cliente e ajustá-los com dados reais de multas e perdas.
+- **Relatórios mensais para a gestão:** incidentes por categoria e por rodovia (onde estão os pontos críticos da malha), tempo médio de reação e de resolução por tipo de problema e a evolução mês a mês. Os dados já existem: cada incidente guarda categoria, rodovia, km e os horários de criação, de assumido e de resolução. Falta uma camada de consultas agregadas e uma tela de painel.
 
 ---
 
@@ -262,7 +264,7 @@ logos/
 │   │   ├── schemas/        # contratos de entrada e saída (Pydantic)
 │   │   ├── services/       # casos de uso: ingestão, status, edição, métricas, frota, WhatsApp
 │   │   └── seed.py         # dados de demonstração
-│   ├── alembic/versions/   # migrations 0001 a 0006
+│   ├── alembic/versions/   # migrations 0001 a 0007
 │   ├── tests/              # pytest, contra PostgreSQL real
 │   └── Dockerfile
 ├── frontend/
@@ -308,7 +310,7 @@ Entre com **Entrar como Ana** ou **Entrar como Bruno** (senha `logos123`). Para 
 
 ## Testes e CI
 
-- **Backend:** 330 testes com pytest, contra PostgreSQL real (banco `logos_test`), incluindo o teste de concorrência com duas conexões simultâneas.
+- **Backend:** 336 testes com pytest, contra PostgreSQL real (banco `logos_test`), incluindo o teste de concorrência com duas conexões simultâneas.
   ```bash
   cd backend && uv run pytest
   ```
