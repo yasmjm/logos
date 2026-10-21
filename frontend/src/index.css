@@ -249,6 +249,95 @@
   }
 }
 
+/* --- Incident queue grid ---------------------------------------------------------
+ * < 768px: two lines of text per row (secondary data folded into a meta line).
+ * 768-1023px: category icon, no truck, owner initials only.
+ * 1024-1279px: + truck and owner name.  >= 1280px: + category label and source.
+ * Never horizontal scroll: the description column absorbs the remaining width.
+ */
+@layer components {
+  .queue-row {
+    display: grid;
+    align-items: center;
+    column-gap: var(--space-3);
+    padding-inline: var(--space-3);
+    grid-template-columns: 64px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "sev desc time"
+      "sev meta meta";
+    row-gap: 2px;
+    padding-block: 6px;
+  }
+  @media (min-width: 768px) {
+    .queue-row {
+      grid-template-columns: 76px 20px minmax(0, 1fr) minmax(0, 140px) 72px 28px 132px;
+      grid-template-areas: "sev cat desc loc time owner status";
+      min-height: var(--row-height);
+      padding-block: 0;
+    }
+  }
+  @media (min-width: 1024px) {
+    .queue-row {
+      grid-template-columns: 76px 20px minmax(0, 1fr) 80px minmax(0, 150px) 72px 112px 132px;
+      grid-template-areas: "sev cat desc truck loc time owner status";
+    }
+  }
+  @media (min-width: 1280px) {
+    .queue-row {
+      grid-template-columns: 76px 200px minmax(0, 1fr) 80px 150px 72px 88px 120px 132px;
+      grid-template-areas: "sev cat desc truck loc time src owner status";
+    }
+  }
+  .queue-row > [data-area] {
+    min-width: 0;
+  }
+  .queue-row > [data-area="sev"] { grid-area: sev; }
+  .queue-row > [data-area="cat"] { grid-area: cat; }
+  .queue-row > [data-area="desc"] { grid-area: desc; }
+  .queue-row > [data-area="truck"] { grid-area: truck; }
+  .queue-row > [data-area="loc"] { grid-area: loc; }
+  .queue-row > [data-area="time"] { grid-area: time; justify-self: end; }
+  .queue-row > [data-area="src"] { grid-area: src; }
+  .queue-row > [data-area="owner"] { grid-area: owner; }
+  .queue-row > [data-area="status"] { grid-area: status; }
+  .queue-row > [data-area="meta"] { grid-area: meta; }
+
+  /* Escalated: high, open, nobody on it for too long. */
+  .queue-row[data-escalated="true"] {
+    box-shadow: inset 3px 0 0 var(--sev-high);
+  }
+  .queue-row[aria-selected="true"] {
+    background-color: var(--surface-2);
+    box-shadow: inset 3px 0 0 var(--accent);
+    opacity: 1;
+  }
+  .queue-row:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring);
+    outline-offset: -2px;
+  }
+
+  /* Arrived since the last refresh of the same view. */
+  .queue-row[data-arrived="true"] {
+    animation: incident-arrived 1.5s ease-out;
+  }
+  @keyframes incident-arrived {
+    from {
+      background-color: var(--surface-3);
+    }
+  }
+
+  .skeleton {
+    background-color: var(--surface-2);
+    border-radius: var(--radius);
+    animation: skeleton-pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes skeleton-pulse {
+    50% {
+      opacity: 0.55;
+    }
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
