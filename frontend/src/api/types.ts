@@ -189,3 +189,31 @@ export interface ChaosConfig {
   latency_ms: number
   failure_rate: number
 }
+
+// --- WhatsApp triage (driver simulator) ---------------------------------------------
+
+export type MessageDirection = 'in' | 'out'
+
+export interface ConversationMessage {
+  id: string
+  direction: MessageDirection
+  text: string
+  created_at: IsoDateTime
+}
+
+export interface ConversationThread {
+  step: string | null
+  options: string[]
+  messages: ConversationMessage[]
+}
+
+export interface BotReply {
+  replies: string[]
+}
+
+export interface FleetTruck {
+  code: string
+  cargo_type: CargoType
+  client_name: string
+  client_tier: ClientTier
+}

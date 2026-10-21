@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CircleHelp, FlaskConical, History, Plus, Zap } from 'lucide-react'
+import { CircleHelp, FlaskConical, History, MessageSquareText, Plus, Zap } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
@@ -16,11 +16,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ChaosDialog } from '@/features/demo/ChaosDialog'
+import { DriverSimulator } from '@/features/demo/DriverSimulator'
 import { HowToDialog } from '@/features/demo/HowToDialog'
 import { ResetDialog } from '@/features/demo/ResetDialog'
 import { useChaosStatus } from '@/features/demo/useChaosStatus'
 
-type Open = 'reset' | 'chaos' | 'howto' | null
+type Open = 'reset' | 'chaos' | 'howto' | 'driver' | null
 
 /** Only rendered when the API offers demo or chaos tools (GET /config). */
 export function DemoMenu() {
@@ -67,6 +68,10 @@ export function DemoMenu() {
                   {count === 1 ? 'Simular 1 incidente' : `Simular ${count} incidentes`}
                 </DropdownMenuItem>
               ))}
+              <DropdownMenuItem onSelect={() => setOpen('driver')}>
+                <MessageSquareText aria-hidden />
+                Simulador do motorista
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => setOpen('reset')}>
                 <History aria-hidden />
@@ -88,6 +93,9 @@ export function DemoMenu() {
         </DropdownMenuContent>
       </DropdownMenu>
 
+      {features.demo && (
+        <DriverSimulator open={open === 'driver'} onOpenChange={(next) => setOpen(next ? 'driver' : null)} />
+      )}
       {features.demo && <ResetDialog open={open === 'reset'} onOpenChange={(next) => setOpen(next ? 'reset' : null)} />}
       {features.chaos && open === 'chaos' && (
         <ChaosDialog open current={chaos.data} onOpenChange={(next) => setOpen(next ? 'chaos' : null)} />
