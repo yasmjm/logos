@@ -6,9 +6,11 @@ import { IncidentRow } from '@/features/queue/IncidentRow'
 import { useNow } from '@/lib/useNow'
 
 const HEADERS = [
+  { area: 'score', label: 'Prior.', title: 'Prioridade (passe o mouse no número para ver a conta)', className: '' },
   { area: 'sev', label: 'Criticidade', className: '' },
   { area: 'cat', label: 'Categoria', className: 'xl:visible invisible' },
   { area: 'desc', label: 'Descrição', className: '' },
+  { area: 'impact', label: 'Impacto', title: 'Carga especial e cliente estratégico', className: '' },
   { area: 'truck', label: 'Caminhão', className: 'hidden lg:block' },
   { area: 'loc', label: 'Localização', className: '' },
   { area: 'time', label: 'Tempo', className: '' },
@@ -76,6 +78,7 @@ export function IncidentQueue({
             role="columnheader"
             data-area={header.area}
             className={header.className}
+            title={'title' in header ? header.title : undefined}
           >
             {header.label}
           </div>
