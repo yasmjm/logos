@@ -1,10 +1,10 @@
-import { MapPinOff, MessageCircle } from 'lucide-react'
+import { MapPinOff, MessageCircle, TriangleAlert } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import type { IncidentDetail } from '@/api/types'
 import { CategoryLabel } from '@/components/CategoryLabel'
 import { formatDateTime, formatLocation } from '@/lib/format'
-import { SOURCE_LABELS } from '@/lib/labels'
+import { CARGO_HINTS, CLIENT_TIER_LABELS, SOURCE_LABELS } from '@/lib/labels'
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -56,7 +56,24 @@ export function IncidentFacts({ incident }: { incident: IncidentDetail }) {
           )}
         </Fact>
         <Fact label="Recebido em">{formatDateTime(incident.created_at)}</Fact>
+        <Fact label="Carga (no momento do incidente)">{CARGO_HINTS[incident.cargo_type]}</Fact>
+        <Fact label="Cliente">
+          {incident.client_name ?? <span className="text-text-subtle italic">Não identificado</span>}
+          <span className="mt-0.5 block text-xs text-text-muted">
+            {CLIENT_TIER_LABELS[incident.client_tier]}
+          </span>
+        </Fact>
       </dl>
+
+      {!incident.fleet_match && (
+        <p role="note" className="flex items-start gap-2 rounded-md border border-sev-medium-border bg-sev-medium-bg px-3 py-2 text-xs">
+          <TriangleAlert aria-hidden className="mt-px size-3.5 shrink-0 text-sev-medium" />
+          <span>
+            Dados da frota não encontrados para <span className="font-mono">{incident.truck_code}</span>.
+            A prioridade considera carga geral e cliente padrão.
+          </span>
+        </p>
+      )}
     </div>
   )
 }

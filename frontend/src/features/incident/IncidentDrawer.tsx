@@ -10,6 +10,7 @@ import { ActionPanel } from '@/features/incident/ActionPanel'
 import { ArchiveDialog, ConflictDialog, InconclusiveDialog } from '@/features/incident/Dialogs'
 import { EditForm } from '@/features/incident/EditForm'
 import { IncidentFacts } from '@/features/incident/IncidentFacts'
+import { PriorityExplanation } from '@/features/incident/PriorityExplanation'
 import { Timeline } from '@/features/incident/Timeline'
 import { type ActionKind, useIncidentActions } from '@/features/incident/useIncidentActions'
 import { useIncidentDetail } from '@/features/incident/useIncidentDetail'
@@ -149,6 +150,7 @@ function DrawerBody({ incidentId, myId, onClose }: { incidentId: string; myId: s
           </p>
         )}
 
+        <PriorityExplanation incident={shown} />
         <IncidentFacts incident={shown} />
         <Timeline incident={shown} />
       </div>

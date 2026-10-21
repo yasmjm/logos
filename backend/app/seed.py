@@ -27,6 +27,8 @@ from app.core.security import hash_password
 from app.domain.sla import ESCALATION_MINUTES, SLA_MINUTES
 from app.models import (
     Analyst,
+    CargoType,
+    ClientTier,
     Incident,
     IncidentCategory,
     IncidentEvent,
@@ -34,7 +36,9 @@ from app.models import (
     IncidentSource,
     IncidentStatus,
     Severity,
+    Truck,
 )
+from app.services.fleet import snapshot_of
 
 TOTAL_INCIDENTS = 120
 SEVERITY_COUNTS = {Severity.HIGH: 18, Severity.MEDIUM: 54, Severity.LOW: 48}
@@ -53,6 +57,24 @@ WHATSAPP_WITHOUT_LOCATION_COUNT = 5
 DEFAULT_PASSWORD = "logos123"
 
 ANALYSTS = [("Ana Souza", "ana"), ("Bruno Lima", "bruno")]
+
+# Demo fleet. Every client name is FICTITIOUS (invented for the demo, not real companies).
+FLEET_CLIENTS: list[tuple[str, ClientTier, CargoType]] = [
+    ("Laticínios Vaca Estrela", ClientTier.STRATEGIC, CargoType.PERISHABLE),
+    ("Combustíveis Arara-Azul", ClientTier.STRATEGIC, CargoType.HAZARDOUS),
+    ("Farmacêutica Lua Cheia", ClientTier.STRATEGIC, CargoType.HIGH_VALUE),
+    ("Química Pinguim Azul", ClientTier.PRIORITY, CargoType.HAZARDOUS),
+    ("Frigorífico Boi Celeste", ClientTier.PRIORITY, CargoType.PERISHABLE),
+    ("Eletrônicos Coruja Prateada", ClientTier.PRIORITY, CargoType.HIGH_VALUE),
+    ("Hortifruti Arco-Íris do Cerrado", ClientTier.STANDARD, CargoType.PERISHABLE),
+    ("Grãos Siriema Dourada", ClientTier.STANDARD, CargoType.GENERAL),
+    ("Papelaria Capivara Sonhadora", ClientTier.STANDARD, CargoType.GENERAL),
+    ("Móveis Jabuti Paciente", ClientTier.STANDARD, CargoType.GENERAL),
+]
+FLEET_SIZE = 40
+FLEET_FIRST_CODE = 1001  # TRK-1001 ... TRK-1040
+EMPTY_TRIP_EVERY = 8  # every 8th truck is returning empty
+UNKNOWN_TRUCK_RATIO = 0.05  # some reports name trucks missing from the fleet
 
 
 @dataclass(frozen=True)
@@ -393,16 +415,49 @@ def _whatsapp_message(
     return f"{opener} aqui é o {truck_code}{where}. {description.lower()}"
 
 
-def random_incident_fields(rng: random.Random, severity: Severity | None = None) -> dict[str, Any]:
+def demo_fleet() -> list[Truck]:
+    """40 trucks spread over the fictitious clients, each with its client's usual cargo."""
+    trucks = []
+    for index in range(FLEET_SIZE):
+        client, tier, cargo = FLEET_CLIENTS[index % len(FLEET_CLIENTS)]
+        if index % EMPTY_TRIP_EVERY == EMPTY_TRIP_EVERY - 1:
+            cargo = CargoType.EMPTY
+        trucks.append(
+            Truck(
+                code=f"TRK-{FLEET_FIRST_CODE + index}",
+                cargo_type=cargo,
+                client_name=client,
+                client_tier=tier,
+            )
+        )
+    return trucks
+
+
+def ensure_fleet(db: Session) -> dict[str, Truck]:
+    """Create or refresh the demo fleet (same codes every time)."""
+    fleet = {truck.code: db.merge(truck) for truck in demo_fleet()}
+    db.flush()
+    return fleet
+
+
+def random_incident_fields(
+    rng: random.Random,
+    severity: Severity | None = None,
+    truck_codes: list[str] | None = None,
+) -> dict[str, Any]:
     """One realistic incident report: a template with coherent severity, a real stretch
     of highway, and sometimes a WhatsApp message. Severity follows the seed's mix when
-    not given (~15% high, ~45% medium, ~40% low)."""
+    not given (~15% high, ~45% medium, ~40% low). With `truck_codes`, the truck comes
+    from the fleet, except a few unknown ones."""
     if severity is None:
         severity = rng.choices(list(SEVERITY_COUNTS), weights=list(SEVERITY_COUNTS.values()))[0]
     template = rng.choice(TEMPLATES_BY_SEVERITY[severity])
     stretch = rng.choice(STRETCHES)
     km = Decimal(rng.randint(stretch.km_min * 10, stretch.km_max * 10)) / 10
-    truck_code = f"TRK-{rng.randint(1, 5000):04d}"
+    if truck_codes and rng.random() >= UNKNOWN_TRUCK_RATIO:
+        truck_code = rng.choice(truck_codes)
+    else:
+        truck_code = f"TRK-{rng.randint(9000, 9999)}"  # not in the demo fleet
     source = IncidentSource.WHATSAPP if rng.random() < WHATSAPP_RATIO else IncidentSource.API
     return {
         "description": template.description,
@@ -454,6 +509,7 @@ def build_demo_incidents(
     rng: random.Random,
     now: datetime,
     analysts: list[Analyst],
+    fleet: dict[str, Truck] | None = None,
 ) -> tuple[list[Incident], list[IncidentEvent]]:
     """The 120-incident demo set, with status history coherent with the timestamps.
 
@@ -480,9 +536,12 @@ def build_demo_incidents(
         else:  # closed / inconclusive, spread over the window
             created_at = now - _minutes(rng, 45, WINDOW.total_seconds() / 60)
 
+        fields = random_incident_fields(rng, severity, list(fleet) if fleet else None)
         incident = Incident(
             id=uuid.uuid4(),
-            **random_incident_fields(rng, severity),
+            **fields,
+            # Copy of the fleet data at creation time (same rule as ingestion).
+            **snapshot_of((fleet or {}).get(fields["truck_code"])).as_fields(),
             status=IncidentStatus.OPEN,
             version=1,
             created_at=created_at,
@@ -573,7 +632,7 @@ def ensure_analysts(db: Session) -> list[Analyst]:
 
 
 def add_demo_incidents(db: Session, analysts: list[Analyst], now: datetime) -> int:
-    incidents, events = build_demo_incidents(random.Random(42), now, analysts)
+    incidents, events = build_demo_incidents(random.Random(42), now, analysts, ensure_fleet(db))
     db.add_all(incidents)
     db.flush()
     db.add_all(events)

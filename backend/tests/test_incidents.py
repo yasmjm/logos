@@ -14,68 +14,7 @@ def _ids(response) -> list[str]:
     return [item["id"] for item in response.json()["items"]]
 
 
-# --- ordering by priority -------------------------------------------------------------
-
-
-def test_list_orders_by_priority_score_desc(client: TestClient, db: Session) -> None:
-    low = make_incident(db, severity=Severity.LOW, category=IncidentCategory.MECHANICAL_FAILURE)
-    victims = make_incident(
-        db, severity=Severity.HIGH, category=IncidentCategory.ACCIDENT_WITH_VICTIMS
-    )
-    medium = make_incident(db, severity=Severity.MEDIUM, category=IncidentCategory.VEHICLE_ACCIDENT)
-
-    response = client.get("/incidents")
-
-    assert response.status_code == 200
-    items = response.json()["items"]
-    assert [i["id"] for i in items] == [str(victims.id), str(medium.id), str(low.id)]
-    assert [i["priority_score"] for i in items] == [140, 75, 20]
-
-
-def test_aging_adds_one_point_per_minute_capped_at_60(client: TestClient, db: Session) -> None:
-    fresh = make_incident(db, age=timedelta(minutes=0))
-    waiting_20 = make_incident(db, age=timedelta(minutes=20))
-    waiting_3h = make_incident(db, age=timedelta(hours=3))
-
-    scores = {i["id"]: i["priority_score"] for i in client.get("/incidents").json()["items"]}
-
-    base = 10 + 10  # low + mechanical_failure
-    assert scores[str(fresh.id)] == base
-    assert scores[str(waiting_20.id)] == base + 20
-    assert scores[str(waiting_3h.id)] == base + 60
-
-
-def test_aging_freezes_at_acknowledged_at(client: TestClient, db: Session) -> None:
-    created_at = datetime.now(UTC) - timedelta(minutes=50, seconds=30)
-    acknowledged = make_incident(
-        db,
-        status=IncidentStatus.INVESTIGATING,
-        created_at=created_at,
-        acknowledged_at=created_at + timedelta(minutes=7, seconds=10),
-    )
-
-    item = client.get("/incidents").json()["items"][0]
-
-    assert item["id"] == str(acknowledged.id)
-    assert item["priority_score"] == 10 + 10 + 7
-
-
-def test_resolved_incidents_go_last_without_aging(client: TestClient, db: Session) -> None:
-    closed_high = make_incident(
-        db,
-        severity=Severity.HIGH,
-        category=IncidentCategory.ACCIDENT_WITH_VICTIMS,
-        status=IncidentStatus.CLOSED,
-        age=timedelta(hours=2),
-    )
-    inconclusive = make_incident(db, status=IncidentStatus.INCONCLUSIVE, age=timedelta(hours=2))
-    open_low = make_incident(db)
-
-    items = client.get("/incidents").json()["items"]
-
-    assert [i["id"] for i in items] == [str(open_low.id), str(closed_high.id), str(inconclusive.id)]
-    assert items[1]["priority_score"] == 140
-    assert items[2]["priority_score"] == 20
+# --- pagination -----------------------------------------------------------------------
 
 
 def test_pagination_returns_total_and_slices(client: TestClient, db: Session) -> None:

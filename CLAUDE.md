@@ -20,6 +20,12 @@ sem prioridade e sem dono definido.
   o UPDATE filtra por id E version; nenhuma linha afetada → 409 com o estado atual.
   NUNCA usar check-then-act (SELECT e depois UPDATE).
 - Toda mudança de status gera um registro em incident_events.
+- Prioridade por impacto no negócio (fonte única: backend/app/domain/priority.py, cálculo no Postgres,
+  ADR 0005): base = (2 × carga + 1,5 × problema + 1 × companhia) / 4,5, notas de 0 a 100,
+  + 1 ponto por minuto sem responsável (até 20, congela no acknowledged_at).
+  Vítimas ativas: score fixo 200, o mais antigo primeiro. Encerrados no fim. SLAs em backend/app/domain/sla.py.
+- Carga e cliente vêm da frota (trucks) e são COPIADOS para o incidente na criação; caminhão
+  desconhecido = carga geral, cliente padrão e fleet_match=false. Clientes do seed são fictícios.
 
 ## Convenções
 - Código, identificadores e commits em inglês (Conventional Commits). README e docs em português.

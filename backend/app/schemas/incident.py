@@ -1,10 +1,12 @@
 import uuid
 from datetime import datetime
-from typing import Annotated, Self
+from typing import TYPE_CHECKING, Annotated, Self
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict
 
 from app.models import (
+    CargoType,
+    ClientTier,
     Incident,
     IncidentCategory,
     IncidentEvent,
@@ -13,6 +15,9 @@ from app.models import (
     IncidentStatus,
     Severity,
 )
+
+if TYPE_CHECKING:
+    from app.services.incidents import Priority
 
 
 def _blank_to_none(value: object) -> object:
@@ -32,6 +37,17 @@ class AnalystRef(BaseModel):
     name: str
 
 
+class PriorityBreakdown(BaseModel):
+    """Why the incident has its priority_score (rules in app/domain/priority.py)."""
+
+    cargo_points: int
+    problem_points: int
+    client_points: int
+    base: float  # weighted mean of the three grades, 0 to 100
+    wait_bonus: int
+    victims: bool  # active incident with victims: fixed top score
+
+
 class IncidentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -47,6 +63,10 @@ class IncidentOut(BaseModel):
     location_note: OptionalText
     source: IncidentSource
     raw_message: OptionalText
+    cargo_type: CargoType
+    client_name: OptionalText
+    client_tier: ClientTier
+    fleet_match: bool
     assignee: AnalystRef | None
     version: int
     created_at: datetime
@@ -54,12 +74,24 @@ class IncidentOut(BaseModel):
     acknowledged_at: datetime | None
     resolved_at: datetime | None
     priority_score: int
+    priority_breakdown: PriorityBreakdown
 
     @classmethod
-    def from_row(cls, incident: Incident, priority_score: int) -> Self:
-        data = IncidentOut.model_fields.keys() - {"priority_score"}
+    def from_row(cls, incident: Incident, priority: "Priority") -> Self:
+        data = IncidentOut.model_fields.keys() - {"priority_score", "priority_breakdown"}
         return cls.model_validate(
-            {field: getattr(incident, field) for field in data} | {"priority_score": priority_score}
+            {field: getattr(incident, field) for field in data}
+            | {
+                "priority_score": priority.score,
+                "priority_breakdown": PriorityBreakdown(
+                    cargo_points=priority.cargo_points,
+                    problem_points=priority.problem_points,
+                    client_points=priority.client_points,
+                    base=priority.base,
+                    wait_bonus=priority.wait_bonus,
+                    victims=priority.victims,
+                ),
+            }
         )
 
 
@@ -87,9 +119,9 @@ class IncidentDetail(IncidentOut):
 
     @classmethod
     def from_parts(
-        cls, incident: Incident, priority_score: int, events: list[IncidentEvent]
+        cls, incident: Incident, priority: "Priority", events: list[IncidentEvent]
     ) -> Self:
-        base = IncidentOut.from_row(incident, priority_score)
+        base = IncidentOut.from_row(incident, priority)
         return cls.model_validate(
             base.model_dump()
             | {"events": [IncidentEventOut.model_validate(event) for event in events]}

@@ -2,6 +2,8 @@
 from app.core.database import Base
 from app.models.analyst import Analyst
 from app.models.enums import (
+    CargoType,
+    ClientTier,
     IncidentCategory,
     IncidentEventType,
     IncidentSource,
@@ -10,10 +12,13 @@ from app.models.enums import (
 )
 from app.models.incident import Incident
 from app.models.incident_event import IncidentEvent
+from app.models.truck import Truck
 
 __all__ = [
     "Analyst",
     "Base",
+    "CargoType",
+    "ClientTier",
     "Incident",
     "IncidentCategory",
     "IncidentEvent",
@@ -21,4 +26,5 @@ __all__ = [
     "IncidentSource",
     "IncidentStatus",
     "Severity",
+    "Truck",
 ]

@@ -1,9 +1,20 @@
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy import ColumnElement, Integer, Select, case, cast, func, select, update
+from sqlalchemy import ColumnElement, Integer, Numeric, Select, case, cast, func, select, update
 from sqlalchemy.orm import Session, joinedload
 
+from app.domain.priority import (
+    CARGO_POINTS,
+    CLIENT_POINTS,
+    PROBLEM_POINTS,
+    VICTIMS_PROBLEM_POINTS,
+    VICTIMS_SCORE,
+    WAIT_BONUS_CAP,
+    WAIT_BONUS_PER_MINUTE,
+    WEIGHT_TOTAL,
+    WEIGHTS,
+)
 from app.models import (
     Incident,
     IncidentCategory,
@@ -13,40 +24,72 @@ from app.models import (
     Severity,
 )
 from app.schemas.incident_create import IncidentCreate
+from app.services.fleet import snapshot_fleet
 
-SEVERITY_WEIGHTS = {Severity.HIGH: 100, Severity.MEDIUM: 50, Severity.LOW: 10}
-CATEGORY_WEIGHTS = {
-    IncidentCategory.ACCIDENT_WITH_VICTIMS: 40,
-    IncidentCategory.VEHICLE_ACCIDENT: 25,
-    IncidentCategory.ROAD_BLOCKAGE: 20,
-    IncidentCategory.ADVERSE_WEATHER: 15,
-    IncidentCategory.MECHANICAL_FAILURE: 10,
-}
-MAX_AGING_POINTS = 60
 ACTIVE_STATUSES = (IncidentStatus.OPEN, IncidentStatus.INVESTIGATING)
 RESOLVED_STATUSES = (IncidentStatus.CLOSED, IncidentStatus.INCONCLUSIVE)
 
 
-def priority_score_expr() -> ColumnElement[int]:
-    """Priority score computed in the database.
+@dataclass(frozen=True)
+class Priority:
+    """Score and its breakdown, as computed by the database."""
 
-    severity weight + category weight + aging, where aging is 1 point per minute
-    waiting for a reaction (created_at until acknowledged_at, or now() if nobody
-    took it yet), capped at 60. Resolved incidents get no aging.
-    """
-    severity_weight = case(SEVERITY_WEIGHTS, value=Incident.severity, else_=0)
-    category_weight = case(CATEGORY_WEIGHTS, value=Incident.category, else_=0)
+    score: int
+    cargo_points: int
+    problem_points: int
+    client_points: int
+    base: float
+    wait_bonus: int
+    victims: bool
+
+
+def _priority_columns() -> list[ColumnElement]:
+    """Business-impact priority (app/domain/priority.py), computed in Postgres."""
+    cargo = case(CARGO_POINTS, value=Incident.cargo_type, else_=0)
+    client = case(CLIENT_POINTS, value=Incident.client_tier, else_=0)
+    problem = case(
+        *[
+            ((Incident.category == category) & (Incident.severity == severity), points)
+            for category, by_severity in PROBLEM_POINTS.items()
+            for severity, points in by_severity.items()
+        ],
+        else_=VICTIMS_PROBLEM_POINTS,
+    )
+    # numeric (not double) so Postgres can round it to one decimal place.
+    base = cast(
+        (WEIGHTS["cargo"] * cargo + WEIGHTS["problem"] * problem + WEIGHTS["client"] * client)
+        / WEIGHT_TOTAL,
+        Numeric,
+    )
+    # Minutes waiting for a reaction: until acknowledged_at, or now if nobody took it.
     waiting_minutes = func.floor(
         func.extract(
             "epoch", func.coalesce(Incident.acknowledged_at, func.now()) - Incident.created_at
         )
         / 60
     )
-    aging = case(
+    wait_bonus = case(
         (Incident.status.in_(RESOLVED_STATUSES), 0),
-        else_=func.least(MAX_AGING_POINTS, func.greatest(0, waiting_minutes)),
+        else_=func.least(WAIT_BONUS_CAP, func.greatest(0, waiting_minutes * WAIT_BONUS_PER_MINUTE)),
     )
-    return cast(severity_weight + category_weight + aging, Integer)
+    victims = (Incident.category == IncidentCategory.ACCIDENT_WITH_VICTIMS) & Incident.status.in_(
+        ACTIVE_STATUSES
+    )
+    score = case((victims, VICTIMS_SCORE), else_=func.round(base + wait_bonus))
+    return [
+        cast(score, Integer).label("priority_score"),
+        cast(cargo, Integer).label("cargo_points"),
+        cast(problem, Integer).label("problem_points"),
+        cast(client, Integer).label("client_points"),
+        func.round(base, 1).label("base"),
+        cast(wait_bonus, Integer).label("wait_bonus"),
+        victims.label("victims"),
+    ]
+
+
+def _priority(row) -> Priority:
+    score, cargo, problem, client, base, wait, victims = row
+    return Priority(score, cargo, problem, client, float(base), wait, bool(victims))
 
 
 def _not_deleted() -> ColumnElement[bool]:
@@ -75,34 +118,36 @@ class IncidentFilters:
 
 def list_incidents(
     db: Session, filters: IncidentFilters, limit: int, offset: int
-) -> tuple[list[tuple[Incident, int]], int]:
-    score = priority_score_expr().label("priority_score")
+) -> tuple[list[tuple[Incident, Priority]], int]:
+    columns = _priority_columns()
+    score = columns[0]
     is_resolved = case((Incident.status.in_(RESOLVED_STATUSES), 1), else_=0)
 
     stmt = (
-        filters.apply(select(Incident, score))
+        filters.apply(select(Incident, *columns))
         .options(joinedload(Incident.assignee))
+        # Resolved last; then priority (victims at 200); ties: the oldest first.
         .order_by(is_resolved, score.desc(), Incident.created_at, Incident.id)
         .limit(limit)
         .offset(offset)
     )
-    rows = [(incident, priority) for incident, priority in db.execute(stmt).all()]
+    rows = [(row[0], _priority(row[1:])) for row in db.execute(stmt).all()]
     total = db.scalar(filters.apply(select(func.count()).select_from(Incident)))
     return rows, total or 0
 
 
 def get_incident(
     db: Session, incident_id: uuid.UUID
-) -> tuple[Incident, int, list[IncidentEvent]] | None:
+) -> tuple[Incident, Priority, list[IncidentEvent]] | None:
     row = db.execute(
-        select(Incident, priority_score_expr())
+        select(Incident, *_priority_columns())
         .options(joinedload(Incident.assignee))
         .where(Incident.id == incident_id, _not_deleted())
     ).one_or_none()
     if row is None:
         return None
 
-    incident, priority = row
+    incident, priority = row[0], _priority(row[1:])
     events = list(
         db.scalars(
             select(IncidentEvent)
@@ -137,6 +182,8 @@ def create_incident(db: Session, data: IncidentCreate) -> uuid.UUID:
     incident = Incident(
         id=uuid.uuid4(),
         **data.model_dump(),
+        # A copy, not a reference: the cargo changes every trip.
+        **snapshot_fleet(db, data.truck_code).as_fields(),
         status=IncidentStatus.OPEN,
         version=1,
     )

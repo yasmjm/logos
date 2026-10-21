@@ -50,7 +50,7 @@ def list_incidents(
         db, lambda: incident_service.list_incidents(db, filters, limit, offset)
     )
     return IncidentListResponse(
-        items=[IncidentOut.from_row(incident, score) for incident, score in rows],
+        items=[IncidentOut.from_row(incident, priority) for incident, priority in rows],
         total=total,
         limit=limit,
         offset=offset,

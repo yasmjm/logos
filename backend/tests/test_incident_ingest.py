@@ -42,7 +42,8 @@ def test_create_returns_201_with_location_and_body(client: TestClient, db: Sessi
     assert body["source"] == "api"
     assert body["highway"] == "BR-116"
     assert body["km"] == 231.5
-    assert body["priority_score"] == 50 + 10
+    # unknown truck (general 40, standard 40), mechanical medium (45): (80 + 67.5 + 40) / 4.5
+    assert body["priority_score"] == 42
     assert client.get(response.headers["location"]).status_code == 200
 
 
