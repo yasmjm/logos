@@ -78,6 +78,33 @@ def test_active_victims_are_always_first_oldest_first(client: TestClient, db: Se
     assert items[0]["priority_breakdown"]["victims"] is True
 
 
+def test_unowned_victims_come_before_victims_already_being_handled(
+    client: TestClient, db: Session, current_analyst: Analyst
+) -> None:
+    handled_oldest = make_incident(
+        db,
+        category=C.ACCIDENT_WITH_VICTIMS,
+        status=IncidentStatus.INVESTIGATING,
+        assigned_to=current_analyst.id,
+        age=timedelta(minutes=40),
+        acknowledged_at=datetime.now(UTC) - timedelta(minutes=35),
+    )
+    unowned_newer = make_incident(db, category=C.ACCIDENT_WITH_VICTIMS, age=timedelta(minutes=2))
+    unowned_older = make_incident(db, category=C.ACCIDENT_WITH_VICTIMS, age=timedelta(minutes=9))
+    not_victims = make_incident(
+        db, cargo_type=CargoType.HAZARDOUS, client_tier=ClientTier.STRATEGIC, age=timedelta(hours=1)
+    )
+
+    ids = [i["id"] for i in _items(client)]
+
+    assert ids == [
+        str(unowned_older.id),
+        str(unowned_newer.id),
+        str(handled_oldest.id),
+        str(not_victims.id),
+    ]
+
+
 def test_resolved_victims_lose_the_override_and_go_last(
     client: TestClient, db: Session, current_analyst: Analyst
 ) -> None:

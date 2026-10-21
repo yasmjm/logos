@@ -30,7 +30,7 @@ export function PriorityExplanation({ incident }: { incident: IncidentDetail }) 
           <Siren aria-hidden className="mt-0.5 size-4 shrink-0 text-sev-high" />
           <span>
             <strong>Há vítimas: prioridade máxima.</strong> Enquanto estiver ativo, fica acima de
-            todos os outros incidentes; entre vítimas, o mais antigo vem primeiro.
+            todos os outros incidentes; entre vítimas, as sem responsável vêm primeiro, depois a mais antiga.
           </span>
         </p>
       ) : (
