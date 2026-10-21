@@ -3,6 +3,7 @@ import { forwardRef, type KeyboardEvent } from 'react'
 
 import type { Incident } from '@/api/types'
 import { AssigneeBadge } from '@/components/AssigneeBadge'
+import { CargoBadges } from '@/components/CargoBadges'
 import { CategoryLabel } from '@/components/CategoryLabel'
 import { SeverityBadge } from '@/components/SeverityBadge'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -110,6 +111,7 @@ export const IncidentRow = forwardRef<HTMLDivElement, IncidentRowProps>(function
       <div role="gridcell" data-area="desc" className="flex min-w-0 items-center gap-2 overflow-hidden">
         {unowned !== null && <UnownedBadge minutes={unowned} className="hidden md:inline-flex" />}
         {whatsapp && <WhatsAppBadge className="xl:hidden" iconOnlyBelowSm />}
+        <CargoBadges incident={incident} />
         <Tooltip>
           <TooltipTrigger asChild>
             <span className="truncate text-text">{incident.description}</span>

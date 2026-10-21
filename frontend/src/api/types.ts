@@ -10,6 +10,8 @@ export type IncidentCategory =
 export type IncidentStatus = 'open' | 'investigating' | 'closed' | 'inconclusive'
 export type IncidentSource = 'api' | 'whatsapp'
 export type IncidentEventType = 'created' | 'status_changed' | 'deleted' | 'updated'
+export type CargoType = 'hazardous' | 'perishable' | 'high_value' | 'general' | 'empty'
+export type ClientTier = 'strategic' | 'priority' | 'standard'
 
 /** ISO 8601 date-time string, as returned by the API. */
 export type IsoDateTime = string
@@ -36,6 +38,12 @@ export interface Incident {
   location_note: string | null
   source: IncidentSource
   raw_message: string | null
+  /** Fleet snapshot copied when the incident was created. */
+  cargo_type: CargoType
+  client_name: string | null
+  client_tier: ClientTier
+  /** False when the truck was not found in the fleet (defaults were used). */
+  fleet_match: boolean
   assignee: AnalystRef | null
   version: number
   created_at: IsoDateTime
@@ -43,6 +51,19 @@ export interface Incident {
   acknowledged_at: IsoDateTime | null
   resolved_at: IsoDateTime | null
   priority_score: number
+  priority_breakdown: PriorityBreakdown
+}
+
+/** Why an incident has its priority_score (rules in GET /config → priority). */
+export interface PriorityBreakdown {
+  cargo_points: number
+  problem_points: number
+  client_points: number
+  /** Weighted mean of the three grades, 0 to 100. */
+  base: number
+  wait_bonus: number
+  /** Active incident with victims: fixed top score. */
+  victims: boolean
 }
 
 export interface IncidentEvent {
@@ -142,6 +163,15 @@ export interface DemoSimulateResponse {
 export interface AppConfig {
   sla_minutes: Record<Severity, number>
   escalation_minutes: number
+  priority: {
+    weights: { cargo: number; problem: number; client: number }
+    cargo_points: Record<CargoType, number>
+    problem_points: Record<string, Record<Severity, number>>
+    client_points: Record<ClientTier, number>
+    wait_bonus_per_minute: number
+    wait_bonus_cap: number
+    victims_score: number
+  }
   features: { demo: boolean; chaos: boolean }
 }
 
