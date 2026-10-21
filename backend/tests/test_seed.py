@@ -108,11 +108,24 @@ def test_demo_set_keeps_totals_and_a_readable_signal(db: Session) -> None:
     }
 
 
+def test_each_truck_has_at_most_one_active_demo_incident(db: Session) -> None:
+    add_demo_incidents(db, ensure_analysts(db), datetime.now(UTC))
+
+    per_truck = db.execute(
+        select(Incident.truck_code, func.count())
+        .where(Incident.status.in_([IncidentStatus.OPEN, IncidentStatus.INVESTIGATING]))
+        .group_by(Incident.truck_code)
+    ).all()
+
+    assert len(per_truck) == 105
+    assert all(count == 1 for _, count in per_truck)
+
+
 def test_demo_fleet_covers_every_cargo_and_tier() -> None:
     fleet = demo_fleet()
 
-    assert len(fleet) == FLEET_SIZE == 40
-    assert len({truck.code for truck in fleet}) == 40
+    assert len(fleet) == FLEET_SIZE == 150
+    assert len({truck.code for truck in fleet}) == 150
     assert {truck.cargo_type for truck in fleet} == set(CargoType)
     assert {truck.client_tier for truck in fleet} == set(ClientTier)
 
@@ -121,7 +134,7 @@ def test_ensure_fleet_is_idempotent(db: Session) -> None:
     ensure_fleet(db)
     ensure_fleet(db)
 
-    assert db.scalar(select(func.count()).select_from(Truck)) == 40
+    assert db.scalar(select(func.count()).select_from(Truck)) == 150
 
 
 def test_demo_incidents_copy_fleet_data_with_a_few_unknown_trucks(db: Session) -> None:
