@@ -1,6 +1,7 @@
 import { type KeyboardEvent, useRef, useState } from 'react'
 
 import type { Incident } from '@/api/types'
+import { useAppConfig } from '@/api/appConfig'
 import { IncidentRow } from '@/features/queue/IncidentRow'
 import { useNow } from '@/lib/useNow'
 
@@ -31,6 +32,7 @@ export function IncidentQueue({
   onSelect: (id: string) => void
 }) {
   const now = useNow()
+  const rules = useAppConfig().data
   const rows = useRef(new Map<string, HTMLDivElement>())
   const [activeId, setActiveId] = useState<string | null>(null)
 
@@ -66,7 +68,7 @@ export function IncidentQueue({
     <div role="grid" aria-label="Fila de incidentes" aria-rowcount={incidents.length + 1}>
       <div
         role="row"
-        className="queue-row sticky top-12 z-[5] hidden border-b bg-surface-1 text-xs font-medium text-text-subtle md:grid"
+        className="queue-row sticky top-[var(--app-header-h,48px)] z-[5] hidden border-b bg-surface-1 text-xs font-medium text-text-subtle md:grid"
       >
         {HEADERS.map((header) => (
           <div
@@ -88,6 +90,7 @@ export function IncidentQueue({
           }}
           incident={incident}
           now={now}
+          rules={rules}
           myId={myId}
           selected={incident.id === selectedId}
           arrived={arrivedIds.has(incident.id)}

@@ -1,4 +1,5 @@
 import uuid
+from dataclasses import asdict
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -18,9 +19,11 @@ from app.schemas.incident import (
 from app.schemas.incident_create import IncidentCreate
 from app.schemas.incident_status import StatusChange
 from app.schemas.incident_update import IncidentUpdate
+from app.schemas.metrics import IncidentMetrics
 from app.services import incident_status, incident_update
 from app.services import incidents as incident_service
 from app.services.incidents import IncidentFilters
+from app.services.metrics import compute_metrics
 
 # Every route here is authenticated (analyst token, or X-API-Key for ingestion).
 router = APIRouter(prefix="/incidents", tags=["incidents"], responses=problem_responses(401, 503))
@@ -55,6 +58,16 @@ def list_incidents(
 
 
 # Declared before /{incident_id} so "summary" is not parsed as an id.
+@router.get(
+    "/metrics",
+    response_model=IncidentMetrics,
+    summary="MTTA and MTTR (last 24 h) and incidents needing attention now",
+)
+def incidents_metrics(db: DbSession, _: CurrentAnalyst) -> IncidentMetrics:
+    metrics = read_with_retry(db, lambda: compute_metrics(db))
+    return IncidentMetrics(**asdict(metrics))
+
+
 @router.get("/summary", response_model=IncidentSummary)
 def incidents_summary(db: DbSession, _: CurrentAnalyst) -> IncidentSummary:
     total, by_severity, by_category = read_with_retry(

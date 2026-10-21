@@ -44,3 +44,13 @@ export function formatDateTime(iso: string): string {
 export function wholeMinutes(ms: number): number {
   return Math.max(0, Math.floor(ms / 60_000))
 }
+
+/** "3 min 12 s", "1 h 05 min", "45 s" (business-friendly averages). */
+export function formatSeconds(totalSeconds: number): string {
+  const seconds = Math.round(totalSeconds)
+  if (seconds < 60) return `${seconds} s`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes} min ${String(seconds % 60).padStart(2, '0')} s`
+  const hours = Math.floor(minutes / 60)
+  return `${hours} h ${String(minutes % 60).padStart(2, '0')} min`
+}

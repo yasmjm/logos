@@ -8,13 +8,14 @@ import { SeverityBadge } from '@/components/SeverityBadge'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { TimingCell } from '@/features/queue/TimingCell'
-import { unownedMinutes } from '@/features/queue/sla'
+import { type SlaRules, unownedMinutes } from '@/features/queue/sla'
 import { formatLocation } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 interface IncidentRowProps {
   incident: Incident
   now: number
+  rules: SlaRules | undefined
   myId: string
   selected: boolean
   arrived: boolean
@@ -74,10 +75,10 @@ function UnownedBadge({ minutes, className }: { minutes: number; className?: str
 }
 
 export const IncidentRow = forwardRef<HTMLDivElement, IncidentRowProps>(function IncidentRow(
-  { incident, now, myId, selected, arrived, tabbable, onSelect, onKeyDown, onFocus },
+  { incident, now, rules, myId, selected, arrived, tabbable, onSelect, onKeyDown, onFocus },
   ref,
 ) {
-  const unowned = unownedMinutes(incident, now)
+  const unowned = unownedMinutes(incident, now, rules)
   const isMine = incident.assignee?.id === myId
   const whatsapp = incident.source === 'whatsapp'
 
@@ -128,7 +129,7 @@ export const IncidentRow = forwardRef<HTMLDivElement, IncidentRowProps>(function
       </div>
 
       <div role="gridcell" data-area="time" className="text-xs">
-        <TimingCell incident={incident} now={now} />
+        <TimingCell incident={incident} now={now} rules={rules} />
       </div>
 
       <div role="gridcell" data-area="src" className="hidden xl:block">

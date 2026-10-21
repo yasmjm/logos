@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 
-import { fetchIncidents, fetchMyActiveCount, fetchSummary } from '@/api/incidents'
+import { fetchIncidents, fetchMetrics, fetchMyActiveCount, fetchSummary } from '@/api/incidents'
 import type { IncidentFilters } from '@/api/types'
 
 export const POLL_MS = 5_000
@@ -13,6 +13,7 @@ export const queueKeys = {
   list: (filters: IncidentFilters) => ['incidents', 'list', filters] as const,
   summary: ['incidents', 'summary'] as const,
   mine: ['incidents', 'mine-count'] as const,
+  metrics: ['incidents', 'metrics'] as const,
 }
 
 export function useIncidentList(filters: IncidentFilters) {
@@ -31,4 +32,8 @@ export function useSummary() {
 
 export function useMyActiveCount() {
   return useQuery({ queryKey: queueKeys.mine, queryFn: fetchMyActiveCount, ...polling })
+}
+
+export function useMetrics() {
+  return useQuery({ queryKey: queueKeys.metrics, queryFn: fetchMetrics, ...polling })
 }

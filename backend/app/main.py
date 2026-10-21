@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.responses import problem_responses
-from app.api.routes import auth, chaos, demo, health, incidents
+from app.api.routes import auth, chaos, config, demo, health, incidents
 from app.core.chaos import ChaosController, ChaosMiddleware
 from app.core.config import Settings, get_settings, warn_if_insecure
 from app.core.errors import register_error_handlers
@@ -35,6 +35,7 @@ def create_app(settings: Settings) -> FastAPI:
     use_problem_json_in_openapi(app)
     app.include_router(health.router)
     app.include_router(auth.router)
+    app.include_router(config.router)
     app.include_router(incidents.router)
     if settings.chaos_enabled:
         app.include_router(chaos.router)
