@@ -1,7 +1,5 @@
 # Discovery: entendendo o problema antes de construir
 
-<!-- REVISAR: Yasmim, este documento é seu. Reescreva cada seção com as suas palavras. -->
-
 Este documento registra como cheguei às decisões do Logos. Não houve pesquisa com usuários reais, então **tudo aqui é hipótese**, a ser validada com a operação do cliente.
 
 ## 1. O problema central

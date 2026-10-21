@@ -28,8 +28,6 @@ MVP do **Logos**, o "cérebro" da central de incidentes de uma transportadora co
 
 ## O problema
 
-<!-- REVISAR: Yasmim, reescreva com as suas palavras -->
-
 O cliente perde milhões por ano porque **reage devagar**: leva horas para agir sobre um pneu furado ou uma estrada bloqueada. A causa não é falta de gente, e sim falta de coordenação: a informação chega **espalhada** (grupos de WhatsApp e planilhas que não se conversam), **sem prioridade** (tudo parece urgente) e **sem dono definido** (dois analistas chamam dois guinchos para o mesmo caminhão, enquanto outro incidente fica esquecido).
 
 Por isso, a métrica que guia o Logos é o **tempo médio de reação (MTTA)**: quanto tempo um incidente espera até alguém assumir. O processo de descoberta completo está em [`docs/discovery.md`](docs/discovery.md).
