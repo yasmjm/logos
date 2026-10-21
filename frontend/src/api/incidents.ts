@@ -1,5 +1,12 @@
 import { apiRequest } from '@/api/client'
-import type { IncidentFilters, IncidentListResponse, IncidentSummary } from '@/api/types'
+import type {
+  IncidentDetail,
+  IncidentFilters,
+  IncidentListResponse,
+  IncidentSummary,
+  IncidentUpdate,
+  StatusChange,
+} from '@/api/types'
 
 export const ACTIVE_STATUSES = ['open', 'investigating'] as const
 export const QUEUE_LIMIT = 200 // the API maximum: the whole active queue in one page
@@ -25,4 +32,21 @@ export function fetchSummary(): Promise<IncidentSummary> {
 export async function fetchMyActiveCount(): Promise<number> {
   const page = await fetchIncidents({ assigned_to: 'me', status: [...ACTIVE_STATUSES], limit: 1 })
   return page.total
+}
+
+export function fetchIncident(id: string): Promise<IncidentDetail> {
+  return apiRequest(`/incidents/${id}`)
+}
+
+export function changeStatus(id: string, body: StatusChange): Promise<IncidentDetail> {
+  return apiRequest(`/incidents/${id}/status`, { method: 'PATCH', json: body })
+}
+
+export function updateIncident(id: string, body: IncidentUpdate): Promise<IncidentDetail> {
+  return apiRequest(`/incidents/${id}`, { method: 'PATCH', json: body })
+}
+
+/** Soft delete: the incident and its history are kept, only hidden. */
+export function archiveIncident(id: string): Promise<void> {
+  return apiRequest(`/incidents/${id}`, { method: 'DELETE' })
 }
