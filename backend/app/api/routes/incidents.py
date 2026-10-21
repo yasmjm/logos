@@ -8,7 +8,7 @@ from app.api.deps import CurrentAnalyst, DbSession, limit_ingestion
 from app.api.responses import problem_responses
 from app.core.errors import ProblemException
 from app.core.retry import read_with_retry
-from app.models import IncidentCategory, IncidentStatus, Severity
+from app.models import IncidentCategory, IncidentSource, IncidentStatus, Severity
 from app.schemas.incident import (
     AnalystRef,
     IncidentDetail,
@@ -99,6 +99,26 @@ def _detail(db: DbSession, incident_id: uuid.UUID) -> IncidentDetail:
 )
 def create_incident(payload: IncidentCreate, db: DbSession, response: Response) -> IncidentDetail:
     incident_id = incident_service.create_incident(db, payload)
+    response.headers["Location"] = router.url_path_for("get_incident", incident_id=incident_id)
+    return _detail(db, incident_id)
+
+
+@router.post(
+    "/manual",
+    status_code=status.HTTP_201_CREATED,
+    response_model=IncidentDetail,
+    responses=problem_responses(422),
+    summary="Register an incident by hand (e.g. the driver called the central)",
+    description=(
+        "Authenticated analyst. Same body and validation as the ingestion (location never "
+        "rejects the incident); source is always manual and the created event names you."
+    ),
+)
+def create_manual_incident(
+    payload: IncidentCreate, db: DbSession, analyst: CurrentAnalyst, response: Response
+) -> IncidentDetail:
+    data = payload.model_copy(update={"source": IncidentSource.MANUAL, "raw_message": None})
+    incident_id = incident_service.create_incident(db, data, analyst_id=analyst.id)
     response.headers["Location"] = router.url_path_for("get_incident", incident_id=incident_id)
     return _detail(db, incident_id)
 

@@ -180,8 +180,11 @@ def get_active_summary(db: Session) -> tuple[int, dict[Severity, int], dict[Inci
     return sum(by_severity.values()), by_severity, by_category
 
 
-def create_incident(db: Session, data: IncidentCreate) -> uuid.UUID:
-    """Insert the incident and its "created" event in a single transaction."""
+def create_incident(
+    db: Session, data: IncidentCreate, analyst_id: uuid.UUID | None = None
+) -> uuid.UUID:
+    """Insert the incident and its "created" event in a single transaction.
+    `analyst_id` is who registered it by hand (manual source); None for integrations."""
     incident = Incident(
         id=uuid.uuid4(),
         **data.model_dump(),
@@ -195,6 +198,7 @@ def create_incident(db: Session, data: IncidentCreate) -> uuid.UUID:
     db.add(
         IncidentEvent(
             incident_id=incident.id,
+            analyst_id=analyst_id,
             event_type=IncidentEventType.CREATED,
             from_status=None,
             to_status=IncidentStatus.OPEN,
