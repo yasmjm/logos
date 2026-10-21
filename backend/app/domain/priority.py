@@ -1,4 +1,4 @@
-"""Business-impact priority, in one place (see docs/adr/0005).
+"""Business-impact priority, in one place (see docs/adr/0004).
 
 Score of an active incident = weighted mean of three 0-100 grades + waiting bonus:
 
