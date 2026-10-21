@@ -68,3 +68,41 @@ jobs:
 
       - name: Tests
         run: uv run pytest -q
+
+  frontend:
+    name: Frontend (lint, typecheck, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+
+    env:
+      VITE_API_URL: https://api.example.invalid # build-time only; never called in CI
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6.1.0
+        with:
+          package_json_file: frontend/package.json # version from "packageManager"
+
+      - name: Set up Node (with pnpm cache)
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
