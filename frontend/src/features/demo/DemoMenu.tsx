@@ -16,12 +16,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ChaosDialog } from '@/features/demo/ChaosDialog'
-import { DriverSimulator } from '@/features/demo/DriverSimulator'
 import { HowToDialog } from '@/features/demo/HowToDialog'
 import { ResetDialog } from '@/features/demo/ResetDialog'
 import { useChaosStatus } from '@/features/demo/useChaosStatus'
+import { useDriverSimulator } from '@/features/demo/useDriverSimulator'
+import { cn } from '@/lib/utils'
 
-type Open = 'reset' | 'chaos' | 'howto' | 'driver' | null
+type Open = 'reset' | 'chaos' | 'howto' | null
 
 /** Only rendered when the API offers demo or chaos tools (GET /config). */
 export function DemoMenu() {
@@ -29,6 +30,7 @@ export function DemoMenu() {
   const chaos = useChaosStatus()
   const queryClient = useQueryClient()
   const [open, setOpen] = useState<Open>(null)
+  const simulator = useDriverSimulator()
 
   const simulate = useMutation({
     mutationFn: simulateIncidents,
@@ -56,6 +58,12 @@ export function DemoMenu() {
           <Button variant="ghost" size="sm">
             <FlaskConical aria-hidden />
             <span className="hidden sm:inline">Demonstração</span>
+            {simulator.unread && (
+              <>
+                <UnreadDot />
+                <span className="sr-only">(mensagem nova para o motorista)</span>
+              </>
+            )}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
@@ -68,9 +76,15 @@ export function DemoMenu() {
                   {count === 1 ? 'Simular 1 incidente' : `Simular ${count} incidentes`}
                 </DropdownMenuItem>
               ))}
-              <DropdownMenuItem onSelect={() => setOpen('driver')}>
+              <DropdownMenuItem onSelect={() => simulator.openFor()}>
                 <MessageSquareText aria-hidden />
                 Simulador do motorista
+                {simulator.unread && (
+                  <>
+                    <UnreadDot className="ml-auto" />
+                    <span className="sr-only">(mensagem nova)</span>
+                  </>
+                )}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => setOpen('reset')}>
@@ -93,9 +107,6 @@ export function DemoMenu() {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {features.demo && (
-        <DriverSimulator open={open === 'driver'} onOpenChange={(next) => setOpen(next ? 'driver' : null)} />
-      )}
       {features.demo && <ResetDialog open={open === 'reset'} onOpenChange={(next) => setOpen(next ? 'reset' : null)} />}
       {features.chaos && open === 'chaos' && (
         <ChaosDialog open current={chaos.data} onOpenChange={(next) => setOpen(next ? 'chaos' : null)} />
@@ -103,4 +114,8 @@ export function DemoMenu() {
       <HowToDialog open={open === 'howto'} onOpenChange={(next) => setOpen(next ? 'howto' : null)} />
     </>
   )
+}
+
+function UnreadDot({ className }: { className?: string }) {
+  return <span aria-hidden className={cn('size-2 shrink-0 rounded-full bg-unread', className)} />
 }
