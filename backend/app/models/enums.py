@@ -29,6 +29,20 @@ class IncidentSource(StrEnum):
     WHATSAPP = "whatsapp"
 
 
+class CargoType(StrEnum):
+    HAZARDOUS = "hazardous"
+    PERISHABLE = "perishable"
+    HIGH_VALUE = "high_value"
+    GENERAL = "general"
+    EMPTY = "empty"
+
+
+class ClientTier(StrEnum):
+    STRATEGIC = "strategic"
+    PRIORITY = "priority"
+    STANDARD = "standard"
+
+
 class IncidentEventType(StrEnum):
     CREATED = "created"
     STATUS_CHANGED = "status_changed"

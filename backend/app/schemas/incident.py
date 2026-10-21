@@ -5,6 +5,8 @@ from typing import Annotated, Self
 from pydantic import BaseModel, BeforeValidator, ConfigDict
 
 from app.models import (
+    CargoType,
+    ClientTier,
     Incident,
     IncidentCategory,
     IncidentEvent,
@@ -47,6 +49,10 @@ class IncidentOut(BaseModel):
     location_note: OptionalText
     source: IncidentSource
     raw_message: OptionalText
+    cargo_type: CargoType
+    client_name: OptionalText
+    client_tier: ClientTier
+    fleet_match: bool
     assignee: AnalystRef | None
     version: int
     created_at: datetime

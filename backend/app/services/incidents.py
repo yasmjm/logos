@@ -13,6 +13,7 @@ from app.models import (
     Severity,
 )
 from app.schemas.incident_create import IncidentCreate
+from app.services.fleet import snapshot_fleet
 
 SEVERITY_WEIGHTS = {Severity.HIGH: 100, Severity.MEDIUM: 50, Severity.LOW: 10}
 CATEGORY_WEIGHTS = {
@@ -137,6 +138,8 @@ def create_incident(db: Session, data: IncidentCreate) -> uuid.UUID:
     incident = Incident(
         id=uuid.uuid4(),
         **data.model_dump(),
+        # A copy, not a reference: the cargo changes every trip.
+        **snapshot_fleet(db, data.truck_code).as_fields(),
         status=IncidentStatus.OPEN,
         version=1,
     )

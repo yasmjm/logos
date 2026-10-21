@@ -2,12 +2,25 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, Numeric, String, Text, func, text
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    func,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from app.models.analyst import Analyst
 from app.models.enums import (
+    CargoType,
+    ClientTier,
     IncidentCategory,
     IncidentSource,
     IncidentStatus,
@@ -53,6 +66,20 @@ class Incident(Base):
         server_default=IncidentSource.API.value,
     )
     raw_message: Mapped[str | None] = mapped_column(Text)
+    # Fleet snapshot copied when the incident is created (see app/services/fleet.py).
+    cargo_type: Mapped[CargoType] = mapped_column(
+        string_enum(CargoType, "cargo_type"),
+        default=CargoType.GENERAL,
+        server_default=CargoType.GENERAL.value,
+    )
+    client_name: Mapped[str | None] = mapped_column(String(120))
+    client_tier: Mapped[ClientTier] = mapped_column(
+        string_enum(ClientTier, "client_tier"),
+        default=ClientTier.STANDARD,
+        server_default=ClientTier.STANDARD.value,
+    )
+    # False when the truck code was not in the fleet (cargo and tier are defaults).
+    fleet_match: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
     assigned_to: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("analysts.id"))
     # Optimistic locking: status changes do UPDATE ... WHERE id = :id AND version = :version.
     version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")

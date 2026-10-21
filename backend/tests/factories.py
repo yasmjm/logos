@@ -9,12 +9,15 @@ from app.core.security import hash_password
 from app.core.tokens import create_access_token
 from app.models import (
     Analyst,
+    CargoType,
+    ClientTier,
     Incident,
     IncidentCategory,
     IncidentEvent,
     IncidentEventType,
     IncidentStatus,
     Severity,
+    Truck,
 )
 from tests.settings import TEST_SETTINGS
 
@@ -93,3 +96,18 @@ def make_event(
     db.add(event)
     db.flush()
     return event
+
+
+def make_truck(
+    db: Session,
+    code: str = "TRK-0420",
+    cargo_type: CargoType = CargoType.GENERAL,
+    client_name: str = "Papelaria Capivara Sonhadora",
+    client_tier: ClientTier = ClientTier.STANDARD,
+) -> Truck:
+    truck = Truck(
+        code=code, cargo_type=cargo_type, client_name=client_name, client_tier=client_tier
+    )
+    db.add(truck)
+    db.flush()
+    return truck
