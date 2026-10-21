@@ -91,6 +91,7 @@
   /* Driver simulator: the driver's bubbles (own colors, no messenger branding). */
   --chat-driver-bg: oklch(0.4 0.09 265);
   --chat-driver-text: oklch(0.98 0.005 265);
+  --unread: oklch(0.8 0.12 195); /* new message dot (demo menu) */
 
   /* Incident already owned by an analyst: quieter row + owner's initial */
   --assigned-row-bg: oklch(0.185 0.008 255);
@@ -147,6 +148,7 @@
   --client-strategic: oklch(0.6 0.13 95);
   --chat-driver-bg: oklch(0.9 0.045 265);
   --chat-driver-text: oklch(0.25 0.04 265);
+  --unread: oklch(0.55 0.12 200);
 
   --assigned-row-bg: oklch(0.985 0.002 255);
   --assigned-row-text: var(--text-muted);
@@ -196,6 +198,7 @@
   --color-client-strategic: var(--client-strategic);
   --color-chat-driver: var(--chat-driver-bg);
   --color-chat-driver-text: var(--chat-driver-text);
+  --color-unread: var(--unread);
 
   --color-assigned-row: var(--assigned-row-bg);
   --color-assignee: var(--assignee-bg);

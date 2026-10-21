@@ -7,6 +7,7 @@ import type {
   DemoResetResponse,
   DemoSimulateResponse,
   FleetTruck,
+  RecentConversation,
 } from '@/api/types'
 
 export function simulateIncidents(count: number): Promise<DemoSimulateResponse> {
@@ -35,4 +36,12 @@ export function fetchConversation(phone: string): Promise<ConversationThread> {
 
 export function sendDriverMessage(phone: string, text: string): Promise<BotReply> {
   return apiRequest('/demo/whatsapp/messages', { method: 'POST', json: { phone, text } })
+}
+
+export function fetchRecentConversations(): Promise<RecentConversation[]> {
+  return apiRequest('/demo/whatsapp/conversations')
+}
+
+export function fetchIncidentConversation(incidentId: string): Promise<{ phone: string }> {
+  return apiRequest(`/demo/whatsapp/incidents/${incidentId}/conversation`)
 }

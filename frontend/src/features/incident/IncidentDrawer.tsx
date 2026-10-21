@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { ActionPanel } from '@/features/incident/ActionPanel'
 import { ArchiveDialog, ConflictDialog, InconclusiveDialog } from '@/features/incident/Dialogs'
+import { DriverConversationButton } from '@/features/incident/DriverConversationButton'
 import { EditForm } from '@/features/incident/EditForm'
 import { IncidentFacts } from '@/features/incident/IncidentFacts'
 import { PriorityExplanation } from '@/features/incident/PriorityExplanation'
@@ -150,6 +151,8 @@ function DrawerBody({ incidentId, myId, onClose }: { incidentId: string; myId: s
           </p>
         )}
 
+        {/* The simulator opens on the left; this panel closes so it can take focus. */}
+        <DriverConversationButton incident={shown} onOpen={onClose} />
         <PriorityExplanation incident={shown} />
         <IncidentFacts incident={shown} />
         <Timeline incident={shown} />

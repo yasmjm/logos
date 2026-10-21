@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { simulatorKeys, useDriverSimulator } from '@/features/demo/useDriverSimulator'
 import { cn } from '@/lib/utils'
 
 const POLL_MS = 2000
@@ -22,15 +23,16 @@ function phoneOf(truckCode: string): string {
 
 /** Demo: chat as a driver with the triage bot. Opens on the left, so the queue (and the
  *  incident panel on the right) stay usable while the conversation goes on. */
-export function DriverSimulator({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function DriverSimulator() {
+  const simulator = useDriverSimulator()
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
+    <Sheet open={simulator.open} onOpenChange={(next) => (next ? simulator.openFor() : simulator.close())} modal={false}>
       <SheetContent
         side="left"
         className="w-full gap-0 border-border-strong bg-surface-1 p-0 sm:max-w-[400px]"
         onInteractOutside={(event) => event.preventDefault()}
       >
-        {open && <Chat />}
+        {simulator.open && <Chat />}
       </SheetContent>
     </Sheet>
   )
@@ -38,13 +40,15 @@ export function DriverSimulator({ open, onOpenChange }: { open: boolean; onOpenC
 
 function Chat() {
   const queryClient = useQueryClient()
+  const simulator = useDriverSimulator()
   const fleet = useQuery({ queryKey: ['demo', 'fleet'], queryFn: fetchFleet, staleTime: Infinity })
-  const [truck, setTruck] = useState<string | null>(null)
-  const truckCode = truck ?? fleet.data?.[0]?.code ?? null
-  const phone = truckCode ? phoneOf(truckCode) : null
+  const firstTruck = fleet.data?.[0]?.code
+  // Last conversation of this tab, or the first truck of the fleet.
+  const phone = simulator.phone ?? (firstTruck ? phoneOf(firstTruck) : null)
+  const truckCode = fleet.data?.find((t) => phoneOf(t.code) === phone)?.code ?? null
 
   const thread = useQuery({
-    queryKey: ['demo', 'conversation', phone],
+    queryKey: simulatorKeys.thread(phone),
     queryFn: () => fetchConversation(phone as string),
     enabled: phone !== null,
     refetchInterval: POLL_MS,
@@ -54,9 +58,12 @@ function Chat() {
   const send = useMutation({
     mutationFn: (text: string) => sendDriverMessage(phone as string, text),
     retry: false,
+    onMutate: () => {
+      // Remember this conversation for the tab (also when it is the default truck).
+      if (phone && simulator.phone !== phone) simulator.setPhone(phone)
+    },
     onSuccess: (reply) => {
-      setDraft('')
-      void queryClient.invalidateQueries({ queryKey: ['demo', 'conversation', phone] })
+      void queryClient.invalidateQueries({ queryKey: simulatorKeys.all })
       // The incident was created: refetch the queue so it arrives with the highlight.
       if (reply.replies.some((text) => text.includes('protocolo'))) {
         void queryClient.invalidateQueries({ queryKey: ['incidents'] })
@@ -68,7 +75,10 @@ function Chat() {
   const submit = (event: FormEvent) => {
     event.preventDefault()
     const text = draft.trim()
-    if (text && !send.isPending) send.mutate(text)
+    if (!text || send.isPending) return
+    // Cleared now, not on success: the driver may already be typing the next answer.
+    setDraft('')
+    send.mutate(text, { onError: () => setDraft((current) => current || text) })
   }
 
   const messages = thread.data?.messages ?? []
@@ -93,7 +103,11 @@ function Chat() {
           <Label htmlFor="sim-truck" className="text-xs text-text-muted">
             Você é o motorista do caminhão
           </Label>
-          <Select value={truckCode ?? undefined} onValueChange={setTruck} disabled={!fleet.data}>
+          <Select
+            value={truckCode ?? undefined}
+            onValueChange={(code) => simulator.setPhone(phoneOf(code))}
+            disabled={!fleet.data}
+          >
             <SelectTrigger id="sim-truck" className="w-full">
               <SelectValue placeholder="Carregando a frota…" />
             </SelectTrigger>
@@ -107,6 +121,7 @@ function Chat() {
             </SelectContent>
           </Select>
         </div>
+        <RecentConversations current={phone} />
       </SheetHeader>
 
       <MessageList messages={messages} empty={thread.isSuccess && messages.length === 0} />
@@ -186,6 +201,37 @@ function MessageList({ messages, empty }: { messages: ConversationMessage[]; emp
         })}
       </ol>
       <div ref={end} />
+    </div>
+  )
+}
+
+/** One click to switch between the drivers that have talked to the bot. */
+function RecentConversations({ current }: { current: string | null }) {
+  const simulator = useDriverSimulator()
+  if (!simulator.recent.length) return null
+  return (
+    <div className="grid gap-1">
+      <span id="sim-recent" className="text-xs text-text-muted">
+        Conversas recentes
+      </span>
+      <div role="group" aria-labelledby="sim-recent" className="flex flex-wrap gap-1">
+        {simulator.recent.map((conversation) => (
+          <Button
+            key={conversation.phone}
+            type="button"
+            size="sm"
+            variant="outline"
+            aria-pressed={conversation.phone === current}
+            onClick={() => simulator.setPhone(conversation.phone)}
+            className={cn(
+              'h-7 px-2 font-mono text-xs',
+              conversation.phone === current && 'border-border-strong bg-surface-3',
+            )}
+          >
+            {conversation.truck_code ?? `…${conversation.phone.slice(-4)}`}
+          </Button>
+        ))}
+      </div>
     </div>
   )
 }

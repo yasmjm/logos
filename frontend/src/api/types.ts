@@ -217,3 +217,10 @@ export interface FleetTruck {
   client_name: string
   client_tier: ClientTier
 }
+
+export interface RecentConversation {
+  phone: string
+  truck_code: string | null
+  last_message_at: IsoDateTime
+  last_out_at: IsoDateTime | null
+}

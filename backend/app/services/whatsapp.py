@@ -165,3 +165,52 @@ def notify_driver(
     else:
         text = f"Seu chamado {code} foi encerrado. Obrigado por avisar a central."
     _say(db, conversation, OUT, text)
+
+
+@dataclass
+class RecentConversation:
+    phone: str
+    truck_code: str | None
+    last_message_at: datetime
+    last_out_at: datetime | None
+
+
+def recent_conversations(db: Session, limit: int = 6) -> list[RecentConversation]:
+    """Phones with messages, most recent first, with the truck they last talked about."""
+    rows = db.execute(
+        select(
+            Conversation.phone,
+            func.max(ConversationMessage.created_at).label("last_message_at"),
+            func.max(ConversationMessage.created_at)
+            .filter(ConversationMessage.direction == OUT)
+            .label("last_out_at"),
+        )
+        .join(ConversationMessage, ConversationMessage.conversation_id == Conversation.id)
+        .group_by(Conversation.phone)
+        .order_by(func.max(ConversationMessage.created_at).desc())
+        .limit(limit)
+    ).all()
+    trucks: dict[str, str] = {}
+    for phone, truck in db.execute(
+        select(Conversation.phone, Conversation.data["truck"].astext)
+        .where(
+            Conversation.phone.in_([row.phone for row in rows]),
+            Conversation.data["truck"].astext.is_not(None),
+        )
+        .order_by(Conversation.updated_at.desc())
+    ):
+        trucks.setdefault(phone, truck)
+    return [
+        RecentConversation(
+            phone=row.phone,
+            truck_code=trucks.get(row.phone),
+            last_message_at=row.last_message_at,
+            last_out_at=row.last_out_at,
+        )
+        for row in rows
+    ]
+
+
+def phone_of_incident(db: Session, incident_id: uuid.UUID) -> str | None:
+    """The phone of the conversation that created this incident, if any."""
+    return db.scalar(select(Conversation.phone).where(Conversation.incident_id == incident_id))

@@ -11,6 +11,7 @@ import { ThemeToggle } from '@/components/ThemeToggle'
 import { Button } from '@/components/ui/button'
 import { ChaosBanner } from '@/features/demo/ChaosBanner'
 import { DemoMenu } from '@/features/demo/DemoMenu'
+import { DriverSimulatorProvider } from '@/features/demo/DriverSimulatorProvider'
 import { QueuePage } from '@/features/queue/QueuePage'
 import { UpdatedIndicator } from '@/features/queue/UpdatedIndicator'
 
@@ -27,29 +28,31 @@ export function AppShell({ session }: { session: Session }) {
   }
 
   return (
-    <div className="flex min-h-svh flex-col">
-      <div ref={top} className="sticky top-0 z-10">
-        <ChaosBanner />
-        <header className="flex h-12 items-center gap-3 border-b bg-surface-1 px-4">
-        <LogoMark />
-        <span className="hidden text-sm text-text-muted sm:inline">Central de Incidentes</span>
-        <div className="ml-auto flex items-center gap-1">
-          <UpdatedIndicator />
-          <DemoMenu />
-          <AssigneeBadge analyst={session.analyst} className="mx-2 text-text" />
-          <ThemeToggle />
-          <Button variant="ghost" size="sm" onClick={signOut}>
-            <LogOut aria-hidden />
-            Sair
-          </Button>
+    <DriverSimulatorProvider>
+      <div className="flex min-h-svh flex-col">
+        <div ref={top} className="sticky top-0 z-10">
+          <ChaosBanner />
+          <header className="flex h-12 items-center gap-3 border-b bg-surface-1 px-4">
+          <LogoMark />
+          <span className="hidden text-sm text-text-muted sm:inline">Central de Incidentes</span>
+          <div className="ml-auto flex items-center gap-1">
+            <UpdatedIndicator />
+            <DemoMenu />
+            <AssigneeBadge analyst={session.analyst} className="mx-2 text-text" />
+            <ThemeToggle />
+            <Button variant="ghost" size="sm" onClick={signOut}>
+              <LogOut aria-hidden />
+              Sair
+            </Button>
+          </div>
+          </header>
         </div>
-        </header>
-      </div>
 
-      <main className="flex-1">
-        <QueuePage myId={session.analyst.id} />
-      </main>
-    </div>
+        <main className="flex-1">
+          <QueuePage myId={session.analyst.id} />
+        </main>
+      </div>
+    </DriverSimulatorProvider>
   )
 }
 
