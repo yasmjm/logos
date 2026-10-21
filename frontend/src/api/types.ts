@@ -137,3 +137,25 @@ export interface DemoResetResponse {
 export interface DemoSimulateResponse {
   items: Incident[]
 }
+
+/** GET /config: business rules and tools, read once after login. */
+export interface AppConfig {
+  sla_minutes: Record<Severity, number>
+  escalation_minutes: number
+  features: { demo: boolean; chaos: boolean }
+}
+
+export interface IncidentMetrics {
+  window_hours: number
+  mtta_seconds: number | null
+  mtta_count: number
+  mttr_seconds: number | null
+  mttr_count: number
+  escalated_now: number
+  sla_breached_now: number
+}
+
+export interface ChaosConfig {
+  latency_ms: number
+  failure_rate: number
+}

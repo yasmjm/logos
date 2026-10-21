@@ -6,7 +6,8 @@ import { FilterBar } from '@/features/queue/FilterBar'
 import { IncidentQueue } from '@/features/queue/IncidentQueue'
 import { KpiBar } from '@/features/queue/KpiBar'
 import { QueueEmpty, QueueError, QueueSkeleton, StaleBanner } from '@/features/queue/QueueStates'
-import { useIncidentList, useMyActiveCount, useSummary } from '@/features/queue/queries'
+import { useIncidentList, useMetrics, useMyActiveCount, useSummary } from '@/features/queue/queries'
+import { MetricsStrip } from '@/features/queue/MetricsStrip'
 import { useNewArrivals } from '@/features/queue/useNewArrivals'
 import { useQueueFilters } from '@/features/queue/useQueueFilters'
 import { formatAgo } from '@/lib/format'
@@ -17,6 +18,7 @@ export function QueuePage({ myId }: { myId: string }) {
   const list = useIncidentList(apiFilters)
   const summary = useSummary()
   const myCount = useMyActiveCount()
+  const metrics = useMetrics()
   const now = useNow()
 
   const incidents = list.data?.items
@@ -39,6 +41,7 @@ export function QueuePage({ myId }: { myId: string }) {
         update={update}
         clear={clear}
       />
+      <MetricsStrip metrics={metrics.data} />
       <FilterBar
         filters={filters}
         isDefault={isDefault}

@@ -3,6 +3,7 @@ import type {
   IncidentDetail,
   IncidentFilters,
   IncidentListResponse,
+  IncidentMetrics,
   IncidentSummary,
   IncidentUpdate,
   StatusChange,
@@ -49,4 +50,9 @@ export function updateIncident(id: string, body: IncidentUpdate): Promise<Incide
 /** Soft delete: the incident and its history are kept, only hidden. */
 export function archiveIncident(id: string): Promise<void> {
   return apiRequest(`/incidents/${id}`, { method: 'DELETE' })
+}
+
+/** MTTA and MTTR over the last 24 h, plus incidents needing attention now. */
+export function fetchMetrics(): Promise<IncidentMetrics> {
+  return apiRequest('/incidents/metrics')
 }
