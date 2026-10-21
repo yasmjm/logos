@@ -12,6 +12,7 @@ import { createRoot } from 'react-dom/client'
 
 import { createQueryClient } from '@/api/queryClient'
 import App from '@/App'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { initTheme } from '@/lib/theme'
 
 initTheme()
@@ -20,7 +21,9 @@ const queryClient = createQueryClient()
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <TooltipProvider delayDuration={300}>
+        <App />
+      </TooltipProvider>
     </QueryClientProvider>
   </StrictMode>,
 )
