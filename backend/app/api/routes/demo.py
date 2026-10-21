@@ -46,5 +46,8 @@ def simulate(
     ids = demo_service.simulate_incidents(db, count, _rng)
     found = [incident_service.get_incident(db, incident_id) for incident_id in ids]
     return DemoSimulateResponse(
-        items=[IncidentOut.from_row(incident, score) for incident, score, _ in filter(None, found)]
+        items=[
+            IncidentOut.from_row(incident, priority)
+            for incident, priority, _ in filter(None, found)
+        ]
     )

@@ -122,7 +122,8 @@ def test_close_by_responsible(client: TestClient, db: Session, ana: Analyst) -> 
     assert row.status is S.CLOSED
     assert row.resolved_at is not None
     assert row.assigned_to == ana.id
-    assert response.json()["priority_score"] == 10 + 10  # resolved: no aging
+    # general/standard, mechanical low: (80 + 30 + 40) / 4.5 = 33.3, and no waiting bonus
+    assert response.json()["priority_score"] == 33
 
 
 def test_inconclusive_with_note(client: TestClient, db: Session, ana: Analyst) -> None:
