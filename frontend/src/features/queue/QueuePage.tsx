@@ -1,4 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
+
+import { IncidentDrawer } from '@/features/incident/IncidentDrawer'
 
 import { FilterBar } from '@/features/queue/FilterBar'
 import { IncidentQueue } from '@/features/queue/IncidentQueue'
@@ -11,12 +13,11 @@ import { formatAgo } from '@/lib/format'
 import { useNow } from '@/lib/useNow'
 
 export function QueuePage({ myId }: { myId: string }) {
-  const { filters, apiFilters, isDefault, update, clear } = useQueueFilters()
+  const { filters, apiFilters, isDefault, update, clear, incidentId, selectIncident } = useQueueFilters()
   const list = useIncidentList(apiFilters)
   const summary = useSummary()
   const myCount = useMyActiveCount()
   const now = useNow()
-  const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const incidents = list.data?.items
   const ids = useMemo(() => incidents?.map((incident) => incident.id), [incidents])
@@ -64,12 +65,14 @@ export function QueuePage({ myId }: { myId: string }) {
           <IncidentQueue
             incidents={incidents}
             myId={myId}
-            selectedId={selectedId}
+            selectedId={incidentId}
             arrivedIds={arrivedIds}
-            onSelect={setSelectedId}
+            onSelect={selectIncident}
           />
         )}
       </section>
+
+      <IncidentDrawer incidentId={incidentId} myId={myId} onClose={() => selectIncident(null)} />
     </div>
   )
 }
